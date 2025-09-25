@@ -1,0 +1,378 @@
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+index 2527937..260c58c 100644
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -24,6 +24,7 @@ set(SOURCES "audio/audio_codec.cc"
+             "settings.cc"
+             "device_state_event.cc"
+             "main.cc"
++            "alarm_clock.c"
+             )
+ 
+ set(INCLUDE_DIRS "." "display" "audio" "protocols")
+diff --git a/main/application.cc b/main/application.cc
+index 1e882a4..55cc3ea 100644
+--- a/main/application.cc
++++ b/main/application.cc
+@@ -15,6 +15,8 @@
+ #include <arpa/inet.h>
+ #include <font_awesome.h>
+ 
++#include "alarm_clock.h"
++
+ #define TAG "Application"
+ 
+ 
+@@ -509,6 +511,9 @@ void Application::Start() {
+ 
+     // Print heap stats
+     SystemInfo::PrintHeapStats();
++
++    //creat alarm_clock management
++    alarm_clock_init();
+ }
+ 
+ void Application::OnClockTimer() {
+diff --git a/main/boards/common/board.cc b/main/boards/common/board.cc
+index ccdf290..08106e0 100644
+--- a/main/boards/common/board.cc
++++ b/main/boards/common/board.cc
+@@ -20,7 +20,10 @@ Board::Board() {
+     }
+     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
+ }
+-
++MyLed* Board::GetMYLed() {
++    static MyNoLed noMYled;
++    return &noMYled;
++}
+ std::string Board::GenerateUuid() {
+     // UUID v4 需要 16 字节的随机数据
+     uint8_t uuid[16];
+diff --git a/main/boards/common/board.h b/main/boards/common/board.h
+index a095cf1..5b14f39 100644
+--- a/main/boards/common/board.h
++++ b/main/boards/common/board.h
+@@ -15,6 +15,21 @@
+ void* create_board();
+ class AudioCodec;
+ class Display;
++
++class MyLed {
++public:
++    virtual ~MyLed() = default;
++    // Set the led state based on the device state
++    virtual void MyOnStateChanged() = 0;
++};
++
++
++
++class MyNoLed : public MyLed {
++public:
++    virtual void MyOnStateChanged() override {}
++};
++
+ class Board {
+ private:
+     Board(const Board&) = delete; // 禁用拷贝构造函数
+@@ -38,6 +53,8 @@ public:
+     virtual std::string GetUuid() { return uuid_; }
+     virtual Backlight* GetBacklight() { return nullptr; }
+     virtual Led* GetLed();
++    virtual MyLed* GetMYLed();
++
+     virtual AudioCodec* GetAudioCodec() = 0;
+     virtual bool GetTemperature(float& esp32temp);
+     virtual Display* GetDisplay();
+@@ -50,6 +67,7 @@ public:
+     virtual void SetPowerSaveMode(bool enabled) = 0;
+     virtual std::string GetBoardJson() = 0;
+     virtual std::string GetDeviceStatusJson() = 0;
++    virtual std::string GetAlarmClockCountJson() = 0;
+ };
+ 
+ #define DECLARE_BOARD(BOARD_CLASS_NAME) \
+diff --git a/main/boards/common/ml307_board.cc b/main/boards/common/ml307_board.cc
+index 1bf5e00..6f8bad1 100644
+--- a/main/boards/common/ml307_board.cc
++++ b/main/boards/common/ml307_board.cc
+@@ -192,3 +192,33 @@ std::string Ml307Board::GetDeviceStatusJson() {
+     cJSON_Delete(root);
+     return json;
+ }
++
++#include "alarm_clock.h"
++std::string Ml307Board::GetAlarmClockCountJson() {
++    /*
++     * 返回设备状态JSON
++     * 
++     * 返回的JSON结构如下：
++     * {
++     *     "alarm_clock_counts": {
++     *         "number": 2
++     *     },
++     * }
++     */
++    auto& board = Board::GetInstance();
++    auto root = cJSON_CreateObject();
++
++    // alarm_clock_counts
++    auto alarm_clock_counts = cJSON_CreateObject();
++    auto audio_codec = board.GetAudioCodec();
++    if (audio_codec) {
++        cJSON_AddNumberToObject(alarm_clock_counts, "number", get_alarm_counts());
++    }
++    cJSON_AddItemToObject(root, "alarm_clock_counts", alarm_clock_counts);
++
++    auto json_str = cJSON_PrintUnformatted(root);
++    std::string json(json_str);
++    cJSON_free(json_str);
++    cJSON_Delete(root);
++    return json;
++}
+diff --git a/main/boards/common/ml307_board.h b/main/boards/common/ml307_board.h
+index 22dddf9..a3ab978 100644
+--- a/main/boards/common/ml307_board.h
++++ b/main/boards/common/ml307_board.h
+@@ -24,6 +24,7 @@ public:
+     virtual void SetPowerSaveMode(bool enabled) override;
+     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
+     virtual std::string GetDeviceStatusJson() override;
++    virtual std::string GetAlarmClockCountJson() override;
+ };
+ 
+ #endif // ML307_BOARD_H
+diff --git a/main/boards/common/wifi_board.cc b/main/boards/common/wifi_board.cc
+index 18c5173..8483343 100644
+--- a/main/boards/common/wifi_board.cc
++++ b/main/boards/common/wifi_board.cc
+@@ -260,3 +260,33 @@ std::string WifiBoard::GetDeviceStatusJson() {
+     cJSON_Delete(root);
+     return json;
+ }
++
++#include "alarm_clock.h"
++std::string WifiBoard::GetAlarmClockCountJson() {
++    /*
++     * 返回设备状态JSON
++     * 
++     * 返回的JSON结构如下：
++     * {
++     *     "alarm_clock_counts": {
++     *         "number": 2
++     *     },
++     * }
++     */
++    auto& board = Board::GetInstance();
++    auto root = cJSON_CreateObject();
++
++    // alarm_clock_counts
++    auto alarm_clock_counts = cJSON_CreateObject();
++    auto audio_codec = board.GetAudioCodec();
++    if (audio_codec) {
++        cJSON_AddNumberToObject(alarm_clock_counts, "number", get_alarm_counts());
++    }
++    cJSON_AddItemToObject(root, "alarm_clock_counts", alarm_clock_counts);
++
++    auto json_str = cJSON_PrintUnformatted(root);
++    std::string json(json_str);
++    cJSON_free(json_str);
++    cJSON_Delete(root);
++    return json;
++}
+diff --git a/main/boards/common/wifi_board.h b/main/boards/common/wifi_board.h
+index c84cf0f..37c5898 100644
+--- a/main/boards/common/wifi_board.h
++++ b/main/boards/common/wifi_board.h
+@@ -19,6 +19,7 @@ public:
+     virtual void ResetWifiConfiguration();
+     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
+     virtual std::string GetDeviceStatusJson() override;
++    virtual std::string GetAlarmClockCountJson() override;
+ };
+ 
+ #endif // WIFI_BOARD_H
+diff --git a/main/mcp_server.cc b/main/mcp_server.cc
+index ad4eb30..fb23c49 100644
+--- a/main/mcp_server.cc
++++ b/main/mcp_server.cc
+@@ -14,6 +14,10 @@
+ #include "display.h"
+ #include "board.h"
+ 
++#include "alarm_clock.h"
++#include "time.h"
++#include <cstring>
++
+ #define TAG "MCP"
+ 
+ #define DEFAULT_TOOLCALL_STACK_SIZE 6144
+@@ -28,21 +32,6 @@ McpServer::~McpServer() {
+     tools_.clear();
+ }
+ 
+-MyLed* Board::GetMYLed() {
+-    static MyNoLed noMYled;
+-    return &noMYled;
+-}
+-class MyLed {
+-public:
+-    virtual ~MyLed() = default;
+-    // Set the led state based on the device state
+-    virtual void MyOnStateChanged() = 0;
+-};
+-
+-class MyNoLed : public MyLed {
+-public:
+-    virtual void MyOnStateChanged() override {}
+-};
+ void McpServer::AddCommonTools() {
+     // To speed up the response time, we add the common tools to the beginning of
+     // the tools list to utilize the prompt cache.
+@@ -76,7 +65,7 @@ void McpServer::AddCommonTools() {
+         AddTool("self.screen.set_brightness",
+             "Set the brightness of the screen.",
+             PropertyList({
+-                Property("brightness", kPropertyTypeInteger, 0, 100)
++                Property("brightness", kPropertyTypeInteger, 0, 80)
+             }),
+             [backlight](const PropertyList& properties) -> ReturnValue {
+                 uint8_t brightness = static_cast<uint8_t>(properties["brightness"].value<int>());
+@@ -85,30 +74,30 @@ void McpServer::AddCommonTools() {
+             });
+     }
+ 
+-    // auto display = board.GetDisplay();
+-    // if (display && !display->GetTheme().empty()) {
+-    //     AddTool("self.screen.set_theme",
+-    //         "Set the theme of the screen. The theme can be `light` or `dark`.",
+-    //         PropertyList({
+-    //             Property("theme", kPropertyTypeString)
+-    //         }),
+-    //         [display](const PropertyList& properties) -> ReturnValue {
+-    //             display->SetTheme(properties["theme"].value<std::string>().c_str());
+-    //             return true;
+-    //         });
+-    // }
++    auto display = board.GetDisplay();
++    if (display && !display->GetTheme().empty()) {
++        AddTool("self.screen.set_theme",
++            "Set the theme of the screen. The theme can be `light` or `dark`.",
++            PropertyList({
++                Property("theme", kPropertyTypeString)
++            }),
++            [display](const PropertyList& properties) -> ReturnValue {
++                display->SetTheme(properties["theme"].value<std::string>().c_str());
++                return true;
++            });
++    }
+ 
+     auto MyLed = board.GetMYLed();
+     if(MyLed)
+     {
+         AddTool("self.my_led.set_brightness",
+-            "Set the brightness of the MY LED.The range of brightness is from 0 to 100.",
++            "Set the brightness of the MY LED.The range of brightness is from 0 to 60.",
+             PropertyList({
+-                Property("brightness", kPropertyTypeInteger, 0, 100)
++                Property("brightness", kPropertyTypeInteger, 0, 60)
+             }),
+             [MyLed](const PropertyList& properties) -> ReturnValue {
+                 uint8_t brightness = static_cast<uint8_t>(properties["brightness"].value<int>());
+-            set_servo_angle(angle);
++            // set_servo_angle(angle);
+             vTaskDelay(500 / portTICK_PERIOD_MS);
+                 // MyLed->MyOnStateChanged();
+                 ESP_LOGI(TAG, "HELLO!! MyLed is working %d !", brightness);
+@@ -118,6 +107,75 @@ void McpServer::AddCommonTools() {
+             });
+     }
+ 
++    // 添加闹钟相关工具
++    auto alarm_clock = board.GetMYLed();
++    if (alarm_clock) {
++        // 添加创建闹钟的工具
++        // 工具名称: self.alarm_clock.create
++        // 工具描述: 创建一个新的闹钟
++        AddTool("self.alarm_clock.create",
++            "Create a new alarm clock.\n"
++            "Use this tool to set up a new alarm with specific time and settings.",
++            // 定义工具参数: hour(小时), minute(分钟), wday(星期几)
++            PropertyList({
++                Property("hour", kPropertyTypeInteger, 0, 23),      // 小时参数，范围0-23
++                Property("minute", kPropertyTypeInteger, 0, 59),    // 分钟参数，范围0-59
++                Property("wday", kPropertyTypeInteger, 0, 127)      // 星期参数，位掩码表示星期几
++            }),
++            // Lambda回调函数，当工具被调用时执行创建闹钟操作
++            [alarm_clock](const PropertyList& properties) -> ReturnValue {
++                // 从参数中获取小时、分钟和星期值
++                uint8_t hour = static_cast<uint8_t>(properties["hour"].value<int>());
++                uint8_t minute = static_cast<uint8_t>(properties["minute"].value<int>());
++                uint8_t wday = static_cast<uint8_t>(properties["wday"].value<int>());
++                
++                // 调用闹钟接口创建新的闹钟
++                struct tm timeinfo;
++                timeinfo.tm_hour = hour;
++                timeinfo.tm_min = minute;
++                char current_time[6];
++                strftime(current_time, sizeof(current_time), "%H:%M", &timeinfo);
++                //snprintf(time_clock, sizeof(time_clock), "%02d:%02d", hour, minute);
++                // 返回执行
++                return alarm_create_callback(current_time, "HELLO", true, 0x01 << wday);
++            });
++        
++        AddTool("self.get_alarm_clock_counts",
++        "Provides the total number of current alarm clocks.\n"
++        "Use this tool for: \n"
++        "1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n"
++        "2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)",
++        PropertyList(),
++        [&board](const PropertyList& properties) -> ReturnValue {
++            return board.GetAlarmClockCountJson();
++            //return get_alarm_counts();
++        });
++
++        // 添加删除闹钟的工具
++        // 工具名称: self.alarm_clock.delete
++        // 工具描述: 删除指定索引的闹钟
++        AddTool("self.alarm_clock.delete",
++            "Delete an existing alarm clock by index.\n"
++            "If the total number of current alarms is unknown, you must call `self.get_alarm_clock_counts` tool first and then call this tool.\n"
++            "Use this tool to remove an alarm that is no longer needed.",
++            // 定义工具参数: index(闹钟索引)
++            PropertyList({
++                Property("index", kPropertyTypeInteger, 0, 9)       // 闹钟索引参数，范围0-9
++            }),
++            // Lambda回调函数，当工具被调用时执行删除闹钟操作
++            [alarm_clock](const PropertyList& properties) -> ReturnValue {
++                // 从参数中获取闹钟索引值
++                uint8_t index = static_cast<uint8_t>(properties["index"].value<int>());
++                
++                // 调用闹钟接口删除指定索引的闹钟
++                alarm_delete_callback(index + 1);
++                
++                // 返回执行成功
++                return true;
++            });
++    }
++    
++
+     auto camera = board.GetCamera();
+     if (camera) {
+         AddTool("self.camera.take_photo",
+diff --git a/main/system_info.cc b/main/system_info.cc
+index 22ce809..8646ea9 100644
+--- a/main/system_info.cc
++++ b/main/system_info.cc
+@@ -138,8 +138,11 @@ void SystemInfo::PrintTaskList() {
+     ESP_LOGI(TAG, "Task list: \n%s", buffer);
+ }
+ 
++#include "alarm_clock.h"
+ void SystemInfo::PrintHeapStats() {
+     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+     int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+     ESP_LOGI(TAG, "free sram: %u minimal sram: %u", free_sram, min_free_sram);
++    //alarm_clock_test();
++    alarm_clock_check();
+ }
