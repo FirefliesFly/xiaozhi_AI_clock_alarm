@@ -15,6 +15,7 @@
 #include "ota.h"
 #include "audio_service.h"
 #include "device_state_event.h"
+#include "alarm_clock.h"
 
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
@@ -28,6 +29,8 @@ enum AecMode {
     kAecOnDeviceSide,
     kAecOnServerSide,
 };
+
+extern void (*alarm_clock_ring)(void);
 
 class Application {
 public:
@@ -59,6 +62,8 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+    static void alarm_clock_ring_static_wrapper(void);
+    void alarm_clock_ring_cbk(void);
 
 private:
     Application();

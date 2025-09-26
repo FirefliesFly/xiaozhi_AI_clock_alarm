@@ -59,7 +59,19 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+    alarm_clock_ring = Application::alarm_clock_ring_static_wrapper;
 }
+
+void Application::alarm_clock_ring_static_wrapper(void) {
+    Application::GetInstance().alarm_clock_ring_cbk();
+}
+void Application::alarm_clock_ring_cbk(void) {
+    for(uint8_t num = 0; num < 6; num++) {
+        audio_service_.PlaySound(Lang::Sounds::OGG_ONETEM);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }  
+}
+
 
 Application::~Application() {
     if (clock_timer_handle_ != nullptr) {

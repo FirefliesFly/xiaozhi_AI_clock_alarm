@@ -36,6 +36,8 @@ void alarm_check(const AlarmManager* manager);
 bool is_time_match(const char* current_time, const char* alarm_time);
 int get_current_weekday();
 
+alarm_clock_ring_func_t alarm_clock_ring = NULL;
+
 AlarmManager* alarm_mgr = NULL;
 
 /*************************外部接口函数********************* */
@@ -250,6 +252,10 @@ void alarm_check(const AlarmManager* manager) {
             // 检查是否重复闹钟或者今天是设定的日期
             if (alarm->repeat || (alarm->days_of_week & (1 << current_weekday))) {
                 ESP_LOGI(TAG, "\n⏰ 闹钟触发! [%s] %s\n", alarm->time, alarm->message);
+                if(alarm_clock_ring != NULL)
+                {
+                    alarm_clock_ring();
+                }
             }
         }
     }
