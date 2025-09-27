@@ -23,11 +23,21 @@ set(SOURCES "audio/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "device_state_event.cc"
+            "TFLite_Lib/TFLite_main_functions.cc"
+            "TFLite_Lib/feature_provider.cc"
+            "TFLite_Lib/no_micro_features_data.cc"
+            "TFLite_Lib/yes_micro_features_data.cc"
+            "TFLite_Lib/model.cc"
+            "TFLite_Lib/recognize_commands.cc"
+            "TFLite_Lib/command_responder.cc"
+            "TFLite_Lib/micro_features_generator.cc"
+            "TFLite_Lib/ringbuf.c"
+            "TFLite_Lib/model.cc"
             "main.cc"
             "alarm_clock.c"
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "audio" "protocols" "TFLite_Lib")
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
