@@ -94,6 +94,10 @@ void AudioService::Initialize(AudioCodec* codec) {
 
 void AudioService::Start() {
     service_stopped_ = false;
+    if(my_model_setup_)
+    {
+        my_model_setup_();
+    }
     xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING);
 
     esp_timer_start_periodic(audio_power_timer_, 1000000);
@@ -156,6 +160,13 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
         esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
         codec_->EnableInput(true);
+    }
+
+    int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);// uints: bytes
+    // in case of memory overflow, due to the large size of the audio buffer, the system will crash
+    if(samples >= (free_sram + 200))
+    {
+        assert(0);
     }
 
     if (codec_->input_sample_rate() != sample_rate) {
@@ -247,6 +258,7 @@ void AudioService::AudioInputTask() {
         /* Feed the wake word */
         if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
             std::vector<int16_t> data;
+            #if 1
             int samples = wake_word_->GetFeedSize();
             if (samples > 0) {
                 if (ReadAudioData(data, 16000, samples)) {
@@ -254,6 +266,22 @@ void AudioService::AudioInputTask() {
                     continue;
                 }
             }
+            #else
+            // here is TFLite model audio data inpute interface
+            //这里只需要将音频数据输入到TFLite模型中就行
+            ESP_LOGI(TAG,"HELLO!!! my wake word!!!");
+            int samples = 16000;
+            if (samples > 0) {
+                if (ReadAudioData(data, 16000, samples)) 
+                {
+                    if((!data.empty()) && (my_model_loop_))
+                    {
+                        my_model_loop_(data.data(), samples);
+                    }
+                    continue;
+                }
+            }
+            #endif
         }
 
         /* Feed the audio processor */
@@ -537,6 +565,14 @@ void AudioService::EnableDeviceAec(bool enable) {
 
 void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
     callbacks_ = callbacks;
+}
+
+void AudioService::RegisterSetup(std::function<void()> setup) {
+    my_model_setup_ = setup;
+}
+
+void AudioService::RegisterLoop(std::function<void(int16_t *, int)> loop) {
+    my_model_loop_ = loop;
 }
 
 void AudioService::PlaySound(const std::string_view& ogg) {

@@ -53,6 +53,7 @@ int8_t* model_input_buffer = nullptr;
 void setup() {
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
+  //g_model是训练出来的模型文件
   model = tflite::GetModel(g_model);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     MicroPrintf("Model provided is schema version %d not equal to supported "
@@ -82,11 +83,13 @@ void setup() {
     return;
   }
 
+  //这里创建一个预测的实例，也即build一个预测的实例
   // Build an interpreter to run the model with.
   static tflite::MicroInterpreter static_interpreter(
       model, micro_op_resolver, tensor_arena, kTensorArenaSize);
   interpreter = &static_interpreter;
 
+  //这里先分配一个张量需要的内存，张量是之后跟模型进行运算的输入向量，该向量由音频数据的数据特征feature决定
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
@@ -94,6 +97,7 @@ void setup() {
     return;
   }
 
+  //这里是做模型的预测实例的初始化，然后返回一个指针，该指针指向该实例
   // Get information about the memory area to use for the model's input.
   model_input = interpreter->input(0);
   if ((model_input->dims->size != 2) || (model_input->dims->data[0] != 1) ||
@@ -118,14 +122,18 @@ void setup() {
   previous_time = 0;
 }
 
-// The name of this function is important for Arduino compatibility.
-void loop() {
+/**
+ * Parameters: 'data' is the audio data,即采样的音频数据样本
+ * 'audio_samples_size'是音频数据样本的个数
+ */
+void loop(int16_t * data, int audio_samples_size) {
   // Fetch the spectrogram for the current time.
   // const int32_t current_time = LatestAudioTimestamp();
-  const int32_t current_time = 0;
+  const int32_t current_time = 20;
   int how_many_new_slices = 0;
+  //这里将音频数据样本转换成特征向量，用于后续的运算
   TfLiteStatus feature_status = feature_provider->PopulateFeatureData(
-      previous_time, current_time, &how_many_new_slices);
+      previous_time, current_time, &how_many_new_slices, data, audio_samples_size);
   if (feature_status != kTfLiteOk) {
     MicroPrintf( "Feature generation failed");
     return;
@@ -137,11 +145,13 @@ void loop() {
     return;
   }
 
+  //将特征向量复制到模型输入张量中
   // Copy feature buffer to input tensor
   for (int i = 0; i < kFeatureElementCount; i++) {
     model_input_buffer[i] = feature_buffer[i];
   }
 
+  //已经拿到了模型的输入量，输入入口就是model_input_buffer，这里激活模型
   // Run the model on the spectrogram input and make sure it succeeds.
   TfLiteStatus invoke_status = interpreter->Invoke();
   if (invoke_status != kTfLiteOk) {
@@ -149,6 +159,7 @@ void loop() {
     return;
   }
 
+  // 上面执行完后，模型就已经运算出结果了，这里只需要获取结果，然后进行判断就行
   // Obtain a pointer to the output tensor
   TfLiteTensor* output = interpreter->output(0);
 #if 1 // using simple argmax instead of recognizer

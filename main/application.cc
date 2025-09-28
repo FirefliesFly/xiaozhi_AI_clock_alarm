@@ -17,6 +17,8 @@
 
 #include "alarm_clock.h"
 
+#include "TFLite_main_functions.h"
+
 #define TAG "Application"
 
 
@@ -349,6 +351,8 @@ void Application::Start() {
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
+    audio_service_.RegisterSetup(setup);
+    audio_service_.RegisterLoop(loop);
     audio_service_.Start();
 
     AudioServiceCallbacks callbacks;

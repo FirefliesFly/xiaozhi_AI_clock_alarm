@@ -37,7 +37,7 @@ class FeatureProvider {
   // Fills the feature data with information from audio inputs, and returns how
   // many feature slices were updated.
   TfLiteStatus PopulateFeatureData(int32_t last_time_in_ms, int32_t time_in_ms,
-                                   int* how_many_new_slices);
+                                   int* how_many_new_slices, int16_t *data, int audio_samples_size);
 
  private:
   int feature_size_;

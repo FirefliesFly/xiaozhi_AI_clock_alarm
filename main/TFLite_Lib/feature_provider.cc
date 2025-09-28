@@ -48,7 +48,7 @@ FeatureProvider::FeatureProvider(int feature_size, int8_t* feature_data)
 FeatureProvider::~FeatureProvider() {}
 
 TfLiteStatus FeatureProvider::PopulateFeatureData(
-    int32_t last_time_in_ms, int32_t time_in_ms, int* how_many_new_slices) {
+    int32_t last_time_in_ms, int32_t time_in_ms, int* how_many_new_slices, int16_t *data, int audio_samples_size) {
   if (feature_size_ != kFeatureElementCount) {
     MicroPrintf("Requested feature_data_ size %d doesn't match %d",
                 feature_size_, kFeatureElementCount);
@@ -139,45 +139,28 @@ TfLiteStatus FeatureProvider::PopulateFeatureData(
     }
   }
 #elif 1
-    // *how_many_new_slices = kFeatureCount;
-    // int16_t* audio_samples = nullptr;
-    // int audio_samples_size = 0;
-    // // GetAudioSamples(0, kFeatureDurationMs, &audio_samples_size, &audio_samples);
-    // static int cnt = 0;
-    // audio_samples = (int16_t *) (silence_1000ms_start + 44);
+    //TODO
+  *how_many_new_slices = kFeatureCount;
+  // int audio_samples_size = 0;
+  int16_t* audio_samples = (int16_t*)data;
 
-    // switch(cnt++ % 4) {
-    //   case 0:
-    //     audio_samples = (int16_t *) (yes_1000ms_start + 44);
-    //     break;
-    //   case 1:
-    //     audio_samples = (int16_t *) (no_1000ms_start + 44);
-    //     break;
-    //   case 2:
-    //     audio_samples = (int16_t *) (noise_1000ms_start + 44);
-    //     break;
-    //   case 3:
-    //     audio_samples = (int16_t *) (silence_1000ms_start + 44);
-    //     break;
-    //   default:
-    //     break;
-    // }
-    // audio_samples_size = 16000;
+  ESP_LOGI(TAG,"HELLO!!! my featrue provider!!!");
+  // GetAudioSamples1(&audio_samples_size, &audio_samples);
 
-    // GetAudioSamples1(&audio_samples_size, &audio_samples);
-
-    // TfLiteStatus generate_status = GenerateFeatures(
-    //       audio_samples, audio_samples_size, &g_features);
-    // if (generate_status != kTfLiteOk) {
-    //   return generate_status;
-    // }
-    // // copy features
-    // for (int i = 0; i < kFeatureCount; ++i) {
-    //   for (int j = 0; j < kFeatureSize; ++j) {
-    //     feature_data_[i * kFeatureSize + j] = g_features[i][j];
-    //   }
-    // }
-    // vTaskDelay(pdMS_TO_TICKS(500));
+  //将采样的音频数据样本数据，提取特征
+  TfLiteStatus generate_status = GenerateFeatures(
+        audio_samples, audio_samples_size, &g_features);
+  if (generate_status != kTfLiteOk) {
+    return generate_status;
+  }
+  //将特征结果转换为特征向量
+  // copy features
+  for (int i = 0; i < kFeatureCount; ++i) {
+    for (int j = 0; j < kFeatureSize; ++j) {
+      feature_data_[i * kFeatureSize + j] = g_features[i][j];
+    }
+  }
+  vTaskDelay(pdMS_TO_TICKS(500));
 #else
     *how_many_new_slices = kFeatureCount;
     int16_t* audio_samples = nullptr;

@@ -115,7 +115,7 @@ TfLiteStatus RecognizeCommands::ProcessLatestResults(
       current_top_index = i;
     }
   }
-  const char* current_top_label = kCategoryLabels[current_top_index];
+  const char* current_top_label = kCategoryLabels[current_top_index];//TODO
 
   // If we've recently had another label trigger, assume one that occurs too
   // soon afterwards is a bad result.

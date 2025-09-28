@@ -101,6 +101,9 @@ public:
 
     void SetCallbacks(AudioServiceCallbacks& callbacks);
 
+    void RegisterSetup(std::function<void()> setup);
+    void RegisterLoop(std::function<void(int16_t *, int)> loop);
+
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
     void PlaySound(const std::string_view& sound);
@@ -121,6 +124,9 @@ private:
     DebugStatistics debug_statistics_;
 
     EventGroupHandle_t event_group_;
+
+    std::function<void(void)> my_model_setup_ = nullptr;
+    std::function<void(int16_t *, int)> my_model_loop_ = nullptr;
 
     // Audio encode / decode
     TaskHandle_t audio_input_task_handle_ = nullptr;
