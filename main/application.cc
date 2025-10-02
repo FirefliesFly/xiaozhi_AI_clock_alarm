@@ -17,8 +17,6 @@
 
 #include "alarm_clock.h"
 
-#include "TFLite_main_functions.h"
-
 #define TAG "Application"
 
 
@@ -351,11 +349,10 @@ void Application::Start() {
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
-    audio_service_.RegisterSetup(setup);
-    audio_service_.RegisterLoop(loop);
     audio_service_.Start();
 
     AudioServiceCallbacks callbacks;
+    /* 初始化一下给其他服务层，比如给wake_word层使用的事件组设置动作 回调函数 */
     callbacks.on_send_queue_available = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_SEND_AUDIO);
     };
@@ -365,6 +362,12 @@ void Application::Start() {
     callbacks.on_vad_change = [this](bool speaking) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
+
+    /** 
+     * 将发送数据到queue的服务、唤醒服务、VAD状态改变服务，
+     * 做成一个函数指针数组，后边直接调用成员函数指针，
+     * 可以直接设置对应的事件组标志位，标记 当前的服务已经在application中完成。
+     */
     audio_service_.SetCallbacks(callbacks);
 
     /* Start the clock timer to update the status bar */

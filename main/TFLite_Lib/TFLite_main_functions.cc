@@ -167,6 +167,10 @@ void loop(int16_t * data, int audio_samples_size) {
   int output_zero_point = output->params.zero_point;
   int max_idx = 0;
   float max_result = 0.0;
+  // 模型的输出张量，这里就是模型预测的输出结果，是一个长度为4的向量，每个向量对应一个类别，向量中的值表示该类别的概率（相对的，所以下面才会进行适当变换）
+  // 可见，训练模式时规定对应的输出格式，决定了实际应用的操作方式
+  // 如果一个类别用两个或以上向量表示，那么就可以通过牺牲时间来换取空间上的优势，来完成比较好的语音识别
+  // TODO
   // Dequantize output values and find the max
   for (int i = 0; i < kCategoryCount; i++) {
     float current_result =

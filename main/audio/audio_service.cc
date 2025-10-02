@@ -14,6 +14,8 @@
 #include "wake_words/esp_wake_word.h"
 #elif CONFIG_USE_CUSTOM_WAKE_WORD
 #include "wake_words/custom_wake_word.h"
+#elif CONFIG_TFLITE_LIB_DEBUG_MODE
+#include "TFLite_proc/tflite_detect.h"
 #endif
 
 #define TAG "AudioService"
@@ -50,12 +52,15 @@ void AudioService::Initialize(AudioCodec* codec) {
     audio_processor_ = std::make_unique<NoAudioProcessor>();
 #endif
 
+/* 这里wake_word类似一个C语言的void *函数指针，用来指向实例化的结构体（前提是，public类型的成员变量的组成顺序一致） */
 #if CONFIG_USE_AFE_WAKE_WORD
     wake_word_ = std::make_unique<AfeWakeWord>();
 #elif CONFIG_USE_ESP_WAKE_WORD
     wake_word_ = std::make_unique<EspWakeWord>();
 #elif CONFIG_USE_CUSTOM_WAKE_WORD
     wake_word_ = std::make_unique<CustomWakeWord>();
+#elif CONFIG_TFLITE_LIB_DEBUG_MODE
+    wake_word_ = std::make_unique<TFLiteMicroDetect>();
 #else
     wake_word_ = nullptr;
 #endif
@@ -72,7 +77,15 @@ void AudioService::Initialize(AudioCodec* codec) {
     });
 
     if (wake_word_) {
+        /**
+         * 这里将application的事件组设置动作的回调函数 传给wake_word对象，
+         * 以方便在wake_word层去操作application的信号
+         * 备注1：wake_word本身是C++抽象类，具体实现类在各个模块中。wake_word对应C语言的void *类型的指针，然后类型强转为对应实例的指针，具象化的结构体在其它地方实现定义。
+         */ 
         wake_word_->OnWakeWordDetected([this](const std::string& wake_word) {
+            /**
+             * 入参的wake_word目前还没有用到
+             */
             if (callbacks_.on_wake_word_detected) {
                 callbacks_.on_wake_word_detected(wake_word);
             }
@@ -163,10 +176,14 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     }
 
     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);// uints: bytes
+    size_t required_bytes = samples * codec_->input_channels() * sizeof(int16_t);
+    // ESP_LOGI(TAG, "HELLO!!!!  free_sram=%d, ch_num=%d c_s_r=%d required_bytes=%d data.size()=%d", free_sram, codec_->input_channels(), codec_->input_sample_rate(), required_bytes, data.size());
+
     // in case of memory overflow, due to the large size of the audio buffer, the system will crash
-    if(samples >= (free_sram + 200))
+    if(required_bytes >= free_sram)
     {
-        assert(0);
+        ESP_LOGE("AudioService", "ReadAudioData: memory overflow. Remaing free size: %d bytes", free_sram);
+        return false;
     }
 
     if (codec_->input_sample_rate() != sample_rate) {
@@ -196,7 +213,29 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
             data = std::move(resampled);
         }
     } else {
-        data.resize(samples * codec_->input_channels());
+        // const size_t MAX_AUDIO_BUFFER_SIZE = 16000;  // 8KB
+
+        size_t required_size = samples * codec_->input_channels();
+    
+        // // 检查是否超过最大限制
+        // if (required_size > MAX_AUDIO_BUFFER_SIZE) {
+        //     ESP_LOGE(TAG, "Requested size %d too large, max is %d", 
+        //              required_size, MAX_AUDIO_BUFFER_SIZE);
+        //     samples = MAX_AUDIO_BUFFER_SIZE / codec_->input_channels();
+        //     required_size = samples * codec_->input_channels();
+        // }
+
+        data.reserve(required_size);  // 如果内存不足，可能抛出异常或返回错误
+
+        // 确保data有足够容量（避免频繁resize）
+        if (data.capacity() < required_size) {
+            ESP_LOGE(TAG, "Memory allocation failed");
+            return false;
+        } else {
+            // 只是调整逻辑大小，不重新分配内存
+            data.resize(required_size);
+        }
+
         if (!codec_->InputData(data)) {
             return false;
         }
@@ -258,26 +297,26 @@ void AudioService::AudioInputTask() {
         /* Feed the wake word */
         if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
             std::vector<int16_t> data;
-            #if 1
-            int samples = wake_word_->GetFeedSize();
+            #if (!CONFIG_TFLITE_LIB_DEBUG_MODE)
+            int samples = wake_word_->GetFeedSize();// just 512 size
             if (samples > 0) {
                 if (ReadAudioData(data, 16000, samples)) {
                     wake_word_->Feed(data);
                     continue;
                 }
             }
-            #else
+            #elif CONFIG_TFLITE_LIB_DEBUG_MODE
             // here is TFLite model audio data inpute interface
             //这里只需要将音频数据输入到TFLite模型中就行
-            ESP_LOGI(TAG,"HELLO!!! my wake word!!!");
-            int samples = 16000;
-            if (samples > 0) {
-                if (ReadAudioData(data, 16000, samples)) 
-                {
-                    if((!data.empty()) && (my_model_loop_))
-                    {
-                        my_model_loop_(data.data(), samples);
-                    }
+            ESP_LOGI(TAG,"HELLO!!! TFLite micro wake word!!!");
+            int sample_rate = 16000;
+            // int samples_date_num = wake_word_->GetFeedSize();
+            int samples_date_num = 2000;
+            if (samples_date_num > 0) {
+                int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);// uints: bytes
+                ESP_LOGI(TAG, "HELLO!!!! feed free_sram=%d samples_date_num=%d", free_sram, samples_date_num);
+                if (ReadAudioData(data, sample_rate, samples_date_num)) {
+                    wake_word_->Feed(data);
                     continue;
                 }
             }
@@ -565,14 +604,6 @@ void AudioService::EnableDeviceAec(bool enable) {
 
 void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
     callbacks_ = callbacks;
-}
-
-void AudioService::RegisterSetup(std::function<void()> setup) {
-    my_model_setup_ = setup;
-}
-
-void AudioService::RegisterLoop(std::function<void(int16_t *, int)> loop) {
-    my_model_loop_ = loop;
 }
 
 void AudioService::PlaySound(const std::string_view& ogg) {

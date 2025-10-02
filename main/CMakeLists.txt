@@ -249,6 +249,8 @@ elseif(CONFIG_USE_ESP_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
 elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+elseif(CONFIG_TFLITE_LIB_DEBUG_MODE)
+    list(APPEND SOURCES "audio/TFLite_proc/tflite_detect.cc")
 endif()
 
 # 根据Kconfig选择语言目录

@@ -95,14 +95,12 @@ public:
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
 
     void EnableWakeWordDetection(bool enable);
+    void EnableTFLiteDetection(bool enable);
     void EnableVoiceProcessing(bool enable);
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
 
     void SetCallbacks(AudioServiceCallbacks& callbacks);
-
-    void RegisterSetup(std::function<void()> setup);
-    void RegisterLoop(std::function<void(int16_t *, int)> loop);
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
@@ -147,6 +145,10 @@ private:
     bool voice_detected_ = false;
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
+
+    #if (CONFIG_TFLITE_LIB_DEBUG_MODE)
+    bool TFLite_micro_initialized_ = false;
+    #endif
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;

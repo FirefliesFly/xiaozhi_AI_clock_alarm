@@ -542,3 +542,19 @@ choice I2S_TYPE_TAIJIPI_S3
 endchoice
 
 endmenu
+
+menu "AI Clock Component Configuration"
+
+    config TFLITE_LIB_DEBUG_MODE
+        bool "Enable TFLite lib test debug mode"
+        default n
+        help
+            Enable TFLite function test debug.本文件对应生成的宏为 CONFIG_TFLITE_LIB_DEBUG_MODE.
+
+    config RECORD_DATA_DEBUG_MODE
+        bool "Enable Peripheral audio pcm data record mode"
+        default n   
+        help
+            Start record audio pcm data.
+
+endmenu
