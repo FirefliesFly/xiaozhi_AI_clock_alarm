@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "codecs/es8311_audio_codec.h"
 #include "display/oled_display.h"
+#include "display/emoji_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
@@ -28,6 +29,7 @@ private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
+    anim::EmojiWidget* display_emoji_ = nullptr;
     Button boot_button_;
     PowerSaveTimer* power_save_timer_ = nullptr;
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
@@ -118,6 +120,11 @@ private:
 
         display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
             {&font_puhui_14_1, &font_awesome_14_1});
+
+        if(display_ != nullptr)
+        {
+            display_emoji_ = new anim::EmojiWidget(panel_, panel_io_);
+        }
     }
 
     void InitializeButtons() {
@@ -168,8 +175,17 @@ public:
         return &led;
     }
 
+    /**
+     * 注释原状态，采用动画显示的操作
+     */
+    /*
     virtual Display* GetDisplay() override {
         return display_;
+    }
+    */
+
+    virtual Display* GetDisplay() override {
+        return display_emoji_;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
