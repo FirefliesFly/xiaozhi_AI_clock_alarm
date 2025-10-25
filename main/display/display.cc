@@ -12,6 +12,9 @@
 #include "settings.h"
 #include "assets/lang_config.h"
 
+// #include "boards/common/board.h"
+#include "display/emoji_display.h"
+
 #define TAG "Display"
 
 Display::Display() {
@@ -66,9 +69,34 @@ void Display::SetStatus(const char* status) {
     if (status_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(status_label_, status);
-    lv_obj_remove_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+
+    // 获取 Board 实例并检查 EmojiWidget
+    auto& board = Board::GetInstance();
+    Display* anim_display = board.GetAnimDisplay();
+
+    if (!((strcmp(status, Lang::Strings::LISTENING) == 0) || (strcmp(status, Lang::Strings::STANDBY) == 0)) || (anim_display == nullptr))
+    {
+        lv_label_set_text(status_label_, status);
+        lv_obj_remove_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+    else
+    {
+        if (anim_display != nullptr) {
+            // // 将 Display* 转换为 anim::EmojiWidget*
+            // anim::EmojiWidget* emoji_widget = static_cast<anim::EmojiWidget*>(anim_display);
+            // auto anim_display = emoji_widget->GetAnimDisplay();
+            // if (anim_display != nullptr) {
+                anim_display->SetStatus(status);
+                ESP_LOGI(TAG, "HELLO!!! Show Emoji");
+            // }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "HELLO!! anim_display is null, and no display perform!");
+        }
+    }
+
 
     last_status_update_time_ = std::chrono::system_clock::now();
 }
@@ -196,11 +224,28 @@ void Display::UpdateStatusBar(bool update_all) {
 
 
 void Display::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
-    if (utf8 != nullptr) {
-        SetIcon(utf8);
-    } else {
-        SetIcon(FONT_AWESOME_NEUTRAL);
+    // 获取 Board 实例并检查 EmojiWidget
+    auto& board = Board::GetInstance();
+    Display* anim_display = board.GetAnimDisplay();
+
+    //有动画则优先动画
+    if (anim_display != nullptr) {
+        // // 将 Display* 转换为 anim::EmojiWidget*
+        // anim::EmojiWidget* emoji_widget = static_cast<anim::EmojiWidget*>(anim_display);
+        // auto anim_display = emoji_widget->GetAnimDisplay();
+        // if (anim_display != nullptr) {
+            anim_display->SetEmotion(emotion);
+            ESP_LOGI(TAG, "HELLO!!! set emotion Emoji");
+        // }
+    }
+    else
+    {
+        const char* utf8 = font_awesome_get_utf8(emotion);
+        if (utf8 != nullptr) {
+            SetIcon(utf8);
+        } else {
+            SetIcon(FONT_AWESOME_NEUTRAL);
+        }
     }
 }
 

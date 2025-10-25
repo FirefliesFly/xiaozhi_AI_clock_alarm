@@ -32,6 +32,8 @@ public:
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
 
+    virtual void StopPlayer() {ESP_LOGE("Display", "Warning!!! Stopping player");};
+
     inline int width() const { return width_; }
     inline int height() const { return height_; }
 

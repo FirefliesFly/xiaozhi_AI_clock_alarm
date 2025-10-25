@@ -175,16 +175,12 @@ public:
         return &led;
     }
 
-    /**
-     * 注释原状态，采用动画显示的操作
-     */
-    /*
+    //原界面显示保留，额外增加动画设计
     virtual Display* GetDisplay() override {
         return display_;
     }
-    */
 
-    virtual Display* GetDisplay() override {
+    virtual Display* GetAnimDisplay() override {
         return display_emoji_;
     }
 

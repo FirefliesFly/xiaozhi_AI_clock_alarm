@@ -15,6 +15,9 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "display/emoji_display.cc"
+            "display/espressif2022__image_player/anim_player.c"
+            "display/espressif2022__image_player/anim_vfs.c"
+            "display/espressif2022__image_player/anim_dec.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -39,6 +42,10 @@ set(SOURCES "audio/audio_codec.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "audio" "protocols" "TFLite_Lib")
+
+# 添加二次修改过的动画anim头文件
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/display/espressif2022__image_player/include)
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/display/espressif2022__image_player/include_priv)
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -347,6 +354,16 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_BOARD_TYPE_XMINI_C3)
+set(SPIFFS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/assets_A")
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".bin"
+)
+endif()
 
 if(CONFIG_BOARD_TYPE_ESP_HI)
 set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")

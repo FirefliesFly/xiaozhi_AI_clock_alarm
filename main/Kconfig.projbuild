@@ -558,3 +558,14 @@ menu "AI Clock Component Configuration"
             Start record audio pcm data.
 
 endmenu
+
+menu "Private Animation Player Configuration"
+
+    config PRIVATE_ANIM_PLAYER_DEFAULT_FPS
+        int "Default frame rate"
+        range 1 60
+        default 30
+        help
+            Default frame rate for animation player in frames per second.
+
+endmenu

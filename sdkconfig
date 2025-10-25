@@ -549,6 +549,12 @@ CONFIG_BOARD_TYPE_XMINI_C3=y
 # end of AI Clock Component Configuration
 
 #
+# Private Animation Player Configuration
+#
+CONFIG_PRIVATE_ANIM_PLAYER_DEFAULT_FPS=30
+# end of Private Animation Player Configuration
+
+#
 # ESP-NN
 #
 # CONFIG_NN_ANSI_C is not set
@@ -2060,12 +2066,6 @@ CONFIG_ESP_HI_MDNS_HOSTNAME="esp-hi"
 # end of ESP Emote Graphics Framework
 
 #
-# Animation Player Configuration
-#
-CONFIG_ANIM_PLAYER_DEFAULT_FPS=30
-# end of Animation Player Configuration
-
-#
 # ADC Battery Estimation
 #
 CONFIG_OCV_SOC_MODEL_1=y
@@ -2363,7 +2363,26 @@ CONFIG_LV_USE_DRAW_SW_ASM=0
 #
 # Logging
 #
-# CONFIG_LV_USE_LOG is not set
+CONFIG_LV_USE_LOG=y
+# CONFIG_LV_LOG_LEVEL_TRACE is not set
+# CONFIG_LV_LOG_LEVEL_INFO is not set
+CONFIG_LV_LOG_LEVEL_WARN=y
+# CONFIG_LV_LOG_LEVEL_ERROR is not set
+# CONFIG_LV_LOG_LEVEL_USER is not set
+# CONFIG_LV_LOG_LEVEL_NONE is not set
+CONFIG_LV_LOG_LEVEL=2
+# CONFIG_LV_LOG_PRINTF is not set
+CONFIG_LV_LOG_USE_TIMESTAMP=y
+CONFIG_LV_LOG_USE_FILE_LINE=y
+CONFIG_LV_LOG_TRACE_MEM=y
+CONFIG_LV_LOG_TRACE_TIMER=y
+CONFIG_LV_LOG_TRACE_INDEV=y
+CONFIG_LV_LOG_TRACE_DISP_REFR=y
+CONFIG_LV_LOG_TRACE_EVENT=y
+CONFIG_LV_LOG_TRACE_OBJ_CREATE=y
+CONFIG_LV_LOG_TRACE_LAYOUT=y
+CONFIG_LV_LOG_TRACE_ANIM=y
+CONFIG_LV_LOG_TRACE_CACHE=y
 # end of Logging
 
 #

@@ -222,9 +222,20 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
 void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus(status);
-    display->SetEmotion(emotion);
-    display->SetChatMessage("system", message);
+    Display* anim_display = Board::GetInstance().GetAnimDisplay();
+
+    if (!((strcmp(status, Lang::Strings::LISTENING) == 0) || (strcmp(status, Lang::Strings::STANDBY) == 0)) || (anim_display == nullptr))
+    {
+        display->SetStatus(status);
+        display->SetEmotion(emotion);
+        display->SetChatMessage("system", message);
+    }
+    else
+    {
+        anim_display->SetStatus(status);
+        anim_display->SetEmotion(emotion);
+    }
+
     if (!sound.empty()) {
         audio_service_.PlaySound(sound);
     }
@@ -233,9 +244,20 @@ void Application::Alert(const char* status, const char* message, const char* emo
 void Application::DismissAlert() {
     if (device_state_ == kDeviceStateIdle) {
         auto display = Board::GetInstance().GetDisplay();
-        display->SetStatus(Lang::Strings::STANDBY);
-        display->SetEmotion("neutral");
-        display->SetChatMessage("system", "");
+        auto anim_display = Board::GetInstance().GetAnimDisplay();
+        Display* display_ = nullptr;
+        if(anim_display != nullptr)
+        {
+            display_ = anim_display;
+        }
+        else
+        {
+            display_ = display;
+        }
+        
+        display_->SetStatus(Lang::Strings::STANDBY);
+        display_->SetEmotion("neutral");
+        display_->SetChatMessage("system", "");
     }
 }
 
@@ -423,7 +445,7 @@ void Application::Start() {
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
-            SetDeviceState(kDeviceStateIdle);
+            SetDeviceState(kDeviceStateIdle);//这里也要修改嘛？
         });
     });
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
@@ -453,7 +475,7 @@ void Application::Start() {
                 if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     Schedule([this, display, message = std::string(text->valuestring)]() {
-                        display->SetChatMessage("assistant", message.c_str());
+                        // display->SetChatMessage("assistant", message.c_str());//不显示大模型下来的文字信息
                     });
                 }
             }
@@ -462,7 +484,7 @@ void Application::Start() {
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([this, display, message = std::string(text->valuestring)]() {
-                    display->SetChatMessage("user", message.c_str());
+                    display->SetChatMessage("user", message.c_str());//修改GetAnimDisplay
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -539,7 +561,14 @@ void Application::OnClockTimer() {
     clock_ticks_++;
 
     auto display = Board::GetInstance().GetDisplay();
-    display->UpdateStatusBar();
+    auto anim_display = Board::GetInstance().GetAnimDisplay();
+    if(anim_display != nullptr)
+    {
+        anim_display->UpdateStatusBar();
+    }
+    else {
+        display->UpdateStatusBar();
+    }
 
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
@@ -670,24 +699,27 @@ void Application::SetDeviceState(DeviceState state) {
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
+    auto anim_display = board.GetAnimDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
-            display->SetStatus(Lang::Strings::STANDBY);
-            display->SetEmotion("neutral");
+            anim_display->SetStatus(Lang::Strings::STANDBY);
+            anim_display->SetEmotion("neutral");
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
+            anim_display->StopPlayer();
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
-            display->SetStatus(Lang::Strings::LISTENING);
-            display->SetEmotion("neutral");
+            // anim_display->StopPlayer();
+            anim_display->SetStatus(Lang::Strings::LISTENING);
+            anim_display->SetEmotion("neutral");
 
             // Make sure the audio processor is running
             if (!audio_service_.IsAudioProcessorRunning()) {
@@ -698,6 +730,7 @@ void Application::SetDeviceState(DeviceState state) {
             }
             break;
         case kDeviceStateSpeaking:
+            anim_display->StopPlayer();
             display->SetStatus(Lang::Strings::SPEAKING);
 
             if (listening_mode_ != kListeningModeRealtime) {
@@ -773,18 +806,29 @@ void Application::SetAecMode(AecMode mode) {
     Schedule([this]() {
         auto& board = Board::GetInstance();
         auto display = board.GetDisplay();
+        auto anim_display = board.GetAnimDisplay();
+        Display* display_ = nullptr;
+        if(anim_display != nullptr)
+        {
+            display_ = anim_display;
+        }
+        else
+        {
+            display_ = display;
+        }
+        
         switch (aec_mode_) {
         case kAecOff:
             audio_service_.EnableDeviceAec(false);
-            display->ShowNotification(Lang::Strings::RTC_MODE_OFF);
+            display_->ShowNotification(Lang::Strings::RTC_MODE_OFF);
             break;
         case kAecOnServerSide:
             audio_service_.EnableDeviceAec(false);
-            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+            display_->ShowNotification(Lang::Strings::RTC_MODE_ON);
             break;
         case kAecOnDeviceSide:
             audio_service_.EnableDeviceAec(true);
-            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+            display_->ShowNotification(Lang::Strings::RTC_MODE_ON);
             break;
         }
 

@@ -60,6 +60,11 @@ Display* Board::GetDisplay() {
     return &display;
 }
 
+Display* Board::GetAnimDisplay() {
+    static NoDisplay AnimDisplay;
+    return &AnimDisplay;
+}
+
 Camera* Board::GetCamera() {
     return nullptr;
 }
