@@ -38,6 +38,8 @@ public:
 
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetStatus(const char* status) override;
+    virtual void StopPlayer() override;
+
     anim::EmojiPlayer* GetAnimDisplay()
     {
         return player_.get();

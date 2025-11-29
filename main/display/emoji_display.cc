@@ -254,6 +254,17 @@ void EmojiWidget::SetEmotion(const char* emotion)
     }
 }
 
+void EmojiWidget::StopPlayer()
+{
+    if (player_) {
+        player_->StopPlayer();
+    }
+    else
+    {
+        ESP_LOGE(TAG, "NO Emoji stop player driver");
+    }
+}
+
 void EmojiWidget::SetStatus(const char* status)
 {
     ESP_LOGI(TAG, "HELLO!!! Emoji set status");
