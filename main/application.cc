@@ -539,13 +539,14 @@ void Application::Start() {
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([this, display, message = std::string(text->valuestring)]() {
-                    display->SetChatMessage("user", message.c_str());//修改GetAnimDisplay
+                    // display->SetChatMessage("user", message.c_str());//修改GetAnimDisplay
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (cJSON_IsString(emotion)) {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
+                    ESP_LOGI(TAG, "HELLO!!! emotion:%s",  emotion_str.c_str());
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
@@ -766,14 +767,14 @@ void Application::SetDeviceState(DeviceState state) {
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
-            anim_display->StopPlayer();
-            display->SetStatus(Lang::Strings::CONNECTING);
+            // anim_display->StopPlayer();
+            // display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
-            display->SetChatMessage("system", "");
+            // display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
             // anim_display->StopPlayer();
-            anim_display->SetStatus(Lang::Strings::LISTENING);
+            // anim_display->SetStatus(Lang::Strings::LISTENING);
             anim_display->SetEmotion("neutral");
 
             // Make sure the audio processor is running
@@ -785,8 +786,8 @@ void Application::SetDeviceState(DeviceState state) {
             }
             break;
         case kDeviceStateSpeaking:
-            anim_display->StopPlayer();
-            display->SetStatus(Lang::Strings::SPEAKING);
+            // anim_display->StopPlayer();
+            // display->SetStatus(Lang::Strings::SPEAKING);
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);

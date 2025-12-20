@@ -150,7 +150,7 @@ void Display::UpdateStatusBar(bool update_all) {
             if (tm->tm_year >= 2025 - 1900) {
                 char time_str[16];
                 strftime(time_str, sizeof(time_str), "%H:%M  ", tm);
-                SetStatus(time_str);
+                // SetStatus(time_str);
             } else {
                 ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
             }

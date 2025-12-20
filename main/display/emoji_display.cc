@@ -167,13 +167,13 @@ void EmojiPlayer::StartPlayer(int aaf, bool repeat, int fps)
 {
     if (player_handle_) {
 
-        static uint8_t my_cnt = 0;
-        aaf = my_cnt % (MMAP_ASSETS_A_SLEEPY_3_BIN + 1);
-        my_cnt++;
-        if(my_cnt == (MMAP_ASSETS_A_SLEEPY_3_BIN + 1))
-        {
-            my_cnt = 0;
-        }
+        // static uint8_t my_cnt = 0;
+        // aaf = my_cnt % (MMAP_ASSETS_A_SLEEPY_3_BIN + 1);
+        // my_cnt++;
+        // if(my_cnt == (MMAP_ASSETS_A_SLEEPY_3_BIN + 1))
+        // {
+        //     my_cnt = 0;
+        // }
         /**
          * @param start 告诉anim task应该从一帧画面里的的第几行像素开始播放
          * @param end 告诉anim task应该播放到一帧画面里的第几行作为结束
@@ -225,6 +225,7 @@ void EmojiWidget::SetEmotion(const char* emotion)
     }
 
     using Param = std::tuple<int, bool, int>;
+#if 0
     static const std::unordered_map<std::string, Param> emotion_map = {
         {"happy",       {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
         {"laughing",    {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
@@ -245,10 +246,46 @@ void EmojiWidget::SetEmotion(const char* emotion)
         {"relaxed",     {MMAP_EMOJI_SCORN_LOOP_AAF, true, 25}},
         {"confused",    {MMAP_EMOJI_SCORN_LOOP_AAF, true, 25}},
     };
+#else
+    static const std::unordered_map<std::string, Param> emotion_map = {
+        // 中性/平静类表情 -> staticstate
+        {"relaxed",     {MMAP_ASSETS_A_RELAXED_BIN, true, 50}},
+        {"sleepy",      {MMAP_ASSETS_A_EMBARRASSED_BIN,   true, 50}},
+        // {"neutral", &staticstate},
 
+        // 积极/开心类表情 -> happy
+        {"happy",       {MMAP_ASSETS_A_HAPPY_2_BIN, true, 50}},//表情是旋转过来的样子，调皮样
+        {"laughing",    {MMAP_ASSETS_A_LAUGH_BIN, true, 15}},//就是盯着屏幕前，然后眨眼，然后眼皮低垂
+        {"funny",       {MMAP_ASSETS_A_ENJOY_BIN, true, 15}},//就是盯着屏幕前，然后眨眼，然后眼皮低垂
+        {"loving",      {MMAP_ASSETS_A_LOVE_BIN, true, 25}},//
+        {"confident",   {MMAP_ASSETS_A_PROUD_BIN, true, 25}},
+        {"delicious",   {MMAP_ASSETS_A_ENJOY_BIN, true, 50}},
+        {"silly",       {MMAP_ASSETS_A_SLEEPY_3_BIN,   true, 25}},//MMAP_ASSETS_A_SLEEPY_3_BIN是飘雪 转头吃血的顽皮
+        {"winking",     {MMAP_ASSETS_A_ANGRY_BIN, true, 50}},
+        {"cool",        {MMAP_ASSETS_A_CONTENT_BIN,  true, 25}},//就是吃包子的表情，满足
+        // {"kissy", &happy},
+
+        // 悲伤类表情 -> sad
+        {"sad",         {MMAP_ASSETS_A_SLEEPY_3_BIN,   true, 25}},
+        {"crying",      {MMAP_ASSETS_A_SLEEPY_3_BIN,   true, 25}},
+        
+        // 愤怒类表情 -> anger
+        // {"angry",       {, true, 50}},
+
+        // 惊讶类表情 -> scare
+        {"surprised",   {MMAP_ASSETS_A_HAPPY_BIN, true, 25}},
+        {"shocked",     {MMAP_ASSETS_A_FRUSTRATED_BIN, true, 25}},
+
+        // 思考/困惑类表情 -> buxue
+        {"embarrassed", {MMAP_ASSETS_A_EMBARRASSED_BIN, true, 25}},
+        {"thinking",    {MMAP_ASSETS_A_CONFUSED_2_BIN, true, 25}},
+        {"confused",    {MMAP_ASSETS_A_CONFUSED_2_BIN, true, 25}},
+    };
+#endif
     auto it = emotion_map.find(emotion);
     if (it != emotion_map.end()) {
         const auto& [aaf, repeat, fps] = it->second;
+        ESP_LOGI(TAG, "HELLO!!! Emoji set emotion: %d", aaf);
         player_->StartPlayer(aaf, repeat, fps);
     } else if (strcmp(emotion, "neutral") == 0) {
     }
@@ -272,10 +309,15 @@ void EmojiWidget::SetStatus(const char* status)
         ESP_LOGI(TAG, "HELLO!!! status = %s", status);
 
         if (strcmp(status, Lang::Strings::LISTENING) == 0) {
-           player_->StartPlayer(MMAP_EMOJI_ASKING_AAF, true, 15);
+           player_->StartPlayer(MMAP_ASSETS_A_INTRO_BIN, true, 15);
         } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
-            player_->StartPlayer(MMAP_EMOJI_WAKE_AAF, true, 15);
+            player_->StartPlayer(MMAP_ASSETS_A_CONTENT_BIN, true, 15);//wink
         }
+        else if (strcmp(status, Lang::Strings::CONNECTING) == 0)
+        {
+            player_->StartPlayer(MMAP_ASSETS_A_SLEEPY_BIN, true, 15);//wink
+        }
+        
     }
 }
 
