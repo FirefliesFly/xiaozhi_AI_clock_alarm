@@ -1,5 +1,6 @@
 #include "oled_display.h"
 #include "assets/lang_config.h"
+#include "alarm_clock_driver.h"  // 添加头文件
 
 #include <string>
 #include <algorithm>
@@ -8,6 +9,7 @@
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
 #include <font_awesome.h>
+#include "application.h"
 
 #define TAG "OledDisplay"
 
@@ -22,7 +24,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
-    port_cfg.task_stack = 6144;
+    port_cfg.task_stack = 6144;//LVGL task stack size
     port_cfg.timer_period_ms = 40;
     lvgl_port_init(&port_cfg);
 
@@ -62,6 +64,9 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     } else {
         SetupUI_128x32();
     }
+
+    // 初始化闹钟UI驱动
+    alarm_ui_driver_ = std::make_unique<AlarmUIDriver>();
 }
 
 OledDisplay::~OledDisplay() {
@@ -85,6 +90,9 @@ OledDisplay::~OledDisplay() {
         esp_lcd_panel_io_del(panel_io_);
     }
     lvgl_port_deinit();
+
+    // 清理闹钟UI驱动
+    alarm_ui_driver_.reset();
 }
 
 bool OledDisplay::Lock(int timeout_ms) {
@@ -95,13 +103,210 @@ void OledDisplay::Unlock() {
     lvgl_port_unlock();
 }
 
+void OledDisplay::SetAlarmManager(AlarmManager* manager) {
+    alarm_manager_ = manager;
+    SetupAlarmUIDriver();
+}
+
+void OledDisplay::SetupAlarmUIDriver() {
+    if (!alarm_ui_driver_ || !alarm_manager_) {
+        return;
+    }
+    
+    AlarmUIDriver::AlarmConfig config;
+    config.alarm_manager = alarm_manager_;
+    config.display_width = width_;
+    config.display_height = height_;
+    config.display = this;
+    config.on_alarm_save = [this](const Alarm& alarm) {
+        SaveAlarmCallback(alarm);
+    };
+    
+    config.on_alarm_delete = [this](int alarm_id) {
+        DeleteAlarmCallback(alarm_id);
+    };
+    
+    config.on_alarm_toggle = [this](int alarm_id, bool enabled) {
+        ToggleAlarmCallback(alarm_id, enabled);
+    };
+    
+    config.on_ui_exit = [this]() {
+        ExitAlarmUICallback();
+    };
+
+    if (!alarm_ui_driver_->Initialize(config)) {
+        ESP_LOGE(TAG, "Failed to initialize alarm UI driver");
+    }
+    ESP_LOGI(TAG,"HELLO!! set alarm ui driver");
+}
+
+void OledDisplay::ShowAlarmList() {
+    if (!alarm_ui_driver_ || !alarm_manager_) {
+        ESP_LOGE(TAG, "Alarm UI driver not ready");
+        return;
+    }
+    
+    DisplayLockGuard lock(this);
+    
+    // 保存当前屏幕状态
+    if (!alarm_ui_active_) {
+        previous_screen_ = lv_scr_act();
+        alarm_ui_active_ = true;
+    }
+
+    ESP_LOGE(TAG, "HELLO!!  alarm_ui_active_=%d container_=%0x", alarm_ui_active_, container_);
+    // 隐藏主UI元素
+    if (container_) {
+        lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    // 显示闹钟列表
+    alarm_ui_driver_->ShowAlarmList();
+}
+
+void OledDisplay::ShowAlarmEdit(int alarm_id) {
+    if (!alarm_ui_driver_ || !alarm_manager_) {
+        return;
+    }
+    
+    Alarm* alarm_to_edit = nullptr;
+    if (alarm_id >= 0) {
+        // 查找现有闹钟
+        for (int i = 0; i < alarm_manager_->count; i++) {
+            if (alarm_manager_->alarms[i].id == alarm_id) {
+                alarm_to_edit = &alarm_manager_->alarms[i];
+                break;
+            }
+        }
+    }
+    
+    DisplayLockGuard lock(this);
+    alarm_ui_driver_->ShowAlarmEdit(alarm_to_edit);
+}
+
+void OledDisplay::ShowAlarmAlert(const Alarm* alarm) {
+    if (!alarm_ui_driver_) {
+        return;
+    }
+    
+    DisplayLockGuard lock(this);
+    alarm_ui_driver_->ShowAlarmAlert(alarm);
+}
+
+void OledDisplay::HideAlarmUI() {
+    if (alarm_ui_active_) {
+        DisplayLockGuard lock(this);
+        RestoreMainUI();
+    }
+}
+
+void OledDisplay::RestoreMainUI() {
+    // 显示主UI元素
+    if (container_) {
+        lv_obj_clear_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // 加载之前的屏幕
+    if (previous_screen_) {
+        lv_scr_load(previous_screen_);
+    }
+
+    // 通知驱动清理
+    if (alarm_ui_driver_) {
+        alarm_ui_driver_->ExitAlarmUI();
+    }
+    
+    alarm_ui_active_ = false;
+    previous_screen_ = nullptr;
+}
+
+void OledDisplay::UpdateAlarmStatus() {
+    if (alarm_ui_driver_) {
+        alarm_ui_driver_->RefreshAlarmList();
+    }
+}
+
+void OledDisplay::SetAlarmButtonState(uint32_t key_id) {
+    if (alarm_ui_driver_) {
+        alarm_button_state_ = key_id;
+    }
+}
+
+void OledDisplay::HandleKeyEvent(uint32_t key_id) {
+    // 如果闹钟UI激活，先让闹钟UI处理按键
+    if (alarm_ui_active_ && alarm_ui_driver_) {
+        ESP_LOGI(TAG, "HELLO!! handle key_id=%d", key_id);
+        // SetAlarmButtonState(key_id);
+        auto& app = Application::GetInstance();
+        app.Schedule([this, key_id]() {
+            if (alarm_ui_driver_->HandleKeyPress(key_id)) {
+                ESP_LOGI(TAG, "HELLO!! process Alarm UI handled key press key_id=%d", key_id);
+                return; // 按键已被处理
+            }
+            // switch(alarm_button_state_)
+            // {
+            //     case kAlarmButtonStateDisabled:
+            //         break;
+            //     case kAlarmButtonStateNormal:
+            //         break;
+            //     case kAlarmButtonStatePressed:
+            //         break;
+            // }
+        });
+    }
+
+    // 否则由主UI处理
+    // ... 现有的按键处理逻辑 ...
+}
+
+void OledDisplay::SaveAlarmCallback(const Alarm& alarm) {
+    if (alarm_save_callback_) {
+        alarm_save_callback_(alarm);
+    }
+    
+    // 保存后返回列表
+    // ShowAlarmList();
+    UpdateAlarmStatus();
+}
+
+void OledDisplay::DeleteAlarmCallback(int alarm_id) {
+    if (alarm_delete_callback_) {
+        alarm_delete_callback_(alarm_id);
+    }
+    
+    // 删除后刷新列表
+    UpdateAlarmStatus();
+}
+
+void OledDisplay::ToggleAlarmCallback(int alarm_id, bool enabled) {
+    if (alarm_toggle_callback_) {
+        alarm_toggle_callback_(alarm_id, enabled);
+    }
+    
+    // 切换后刷新列表
+    UpdateAlarmStatus();
+}
+
+void OledDisplay::ExitAlarmUICallback() {
+    HideAlarmUI();
+    
+    if (alarm_ui_exit_callback_) {
+        alarm_ui_exit_callback_();
+    }
+}
+
 void OledDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
     }
 
-    // Replace all newlines with spaces
+    // 如果闹钟UI激活，不更新聊天消息
+    if (alarm_ui_active_) {
+        return;
+    }
+
+    // 替换所有换行符为空格
     std::string content_str = content;
     std::replace(content_str.begin(), content_str.end(), '\n', ' ');
 
@@ -224,6 +429,34 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    // vTaskDelay(pdMS_TO_TICKS(9000));
+    // ESP_LOGI(TAG, "HELLO!! setup ui!!");
+    // // 创建新屏幕
+    // current_screen_ = lv_obj_create(lv_scr_act());
+    // lv_obj_set_size(current_screen_, config_.display_width, config_.display_height);
+    // lv_obj_set_style_bg_color(current_screen_, lv_color_white(), 0);
+
+    // // 标题
+    // lv_obj_t* title = lv_label_create(current_screen_);
+    // lv_label_set_text(title, "Alarms");
+    // lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 5);
+}
+
+void OledDisplay::SetAlarmSaveCallback(std::function<void(const Alarm&)> callback) {
+    alarm_save_callback_ = std::move(callback);
+}
+
+void OledDisplay::SetAlarmDeleteCallback(std::function<void(int)> callback) {
+    alarm_delete_callback_ = std::move(callback);
+}
+
+void OledDisplay::SetAlarmToggleCallback(std::function<void(int, bool)> callback) {
+    alarm_toggle_callback_ = std::move(callback);
+}
+
+void OledDisplay::SetAlarmUIExitCallback(std::function<void()> callback) {
+    alarm_ui_exit_callback_ = std::move(callback);
 }
 
 void OledDisplay::SetupUI_128x32() {

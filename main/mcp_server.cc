@@ -139,7 +139,7 @@ void McpServer::AddCommonTools() {
                 // 返回执行
                 return alarm_create_callback(current_time, "HELLO", true, 0x01 << wday);
             });
-        
+
         AddTool("self.get_alarm_clock_counts",
         "Provides the total number of current alarm clocks.\n"
         "Use this tool for: \n"

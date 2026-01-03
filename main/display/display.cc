@@ -14,6 +14,7 @@
 
 // #include "boards/common/board.h"
 #include "display/emoji_display.h"
+#include "oled_display.h"
 
 #define TAG "Display"
 
@@ -23,8 +24,25 @@ Display::Display() {
         .callback = [](void *arg) {
             Display *display = static_cast<Display*>(arg);
             DisplayLockGuard lock(display);
-            lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
+            if(display->notification_label_ != nullptr)
+            {
+                lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "HELLO!!! display NULLPTR ");
+            }
+
+            if(display->status_label_ != nullptr)
+            {
+                lv_obj_remove_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "HELLO!!! display status NULLPTR ");
+            }
+
+            ESP_LOGI(TAG, "HELLO!!! display oled ");
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
@@ -222,20 +240,36 @@ void Display::UpdateStatusBar(bool update_all) {
     esp_pm_lock_release(pm_lock_);
 }
 
-
+uint16_t my_flag = 0;
 void Display::SetEmotion(const char* emotion) {
     // 获取 Board 实例并检查 EmojiWidget
     auto& board = Board::GetInstance();
+    Display* display = board.GetDisplay();
     Display* anim_display = board.GetAnimDisplay();
 
     //有动画则优先动画
     if (anim_display != nullptr) {
+        OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+        my_flag++;
+        // if(oled_display && (my_flag <= 20))
+        {
+            // display->SetAlarmManager(&manager);
+            oled_display->UpdateAlarmStatus();
+            // vTaskDelay(pdMS_TO_TICKS(5000));
+        }
+
+        // if(my_flag > 20 && oled_display)
+        // {
+        //     oled_display->HideAlarmUI();
+        //     // oled_display->RestoreMainUI();
+        // }
+
         // // 将 Display* 转换为 anim::EmojiWidget*
         // anim::EmojiWidget* emoji_widget = static_cast<anim::EmojiWidget*>(anim_display);
         // auto anim_display = emoji_widget->GetAnimDisplay();
         // if (anim_display != nullptr) {
             anim_display->SetEmotion(emotion);
-            ESP_LOGI(TAG, "HELLO!!! set emotion Emoji");
+            ESP_LOGI(TAG, "HELLO!!! set emotion Emoji my_flag=%d", my_flag);
         // }
     }
     else

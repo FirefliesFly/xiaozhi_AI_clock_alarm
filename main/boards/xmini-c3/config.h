@@ -19,6 +19,7 @@
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_2
 #define BOOT_BUTTON_GPIO        GPIO_NUM_9
+#define ALARM_BUTTON_GPIO       GPIO_NUM_13
 
 #define DISPLAY_WIDTH   128
 #define DISPLAY_HEIGHT  64

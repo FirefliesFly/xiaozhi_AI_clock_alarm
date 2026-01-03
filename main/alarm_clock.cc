@@ -1,5 +1,6 @@
 #include <sys/time.h> 
 #include "alarm_clock.h"
+#include <stdbool.h>
 #include <time.h>
 #include <esp_log.h>
 
@@ -7,28 +8,13 @@
 #include "esp_assert.h"
 #include "settings.h"
 #include <cJSON.h>
+#include "oled_display.h"
+
 #define TAG "alarm_clock"
 
-#define ALARM_MAX_COUNT 10
+#include "application.h"
 
-// 闹钟结构体
-typedef struct {
-    int id;                 // 闹钟ID
-    char time[6];           // 时间格式 HH:MM
-    char message[50];       // 闹钟提示信息
-    bool enabled;           // 是否启用
-    bool repeat;            // 是否重复
-    int days_of_week;       // 重复的星期几 (位掩码 0b01111111 表示周一到周日)
-} Alarm;
-
-// 闹钟管理器结构体
-typedef struct {
-    Alarm* alarms;          // 闹钟数组
-    int capacity;           // 数组容量
-    int count;              // 当前闹钟数量
-    int next_id;            // 下一个可用的ID
-    int enable;            // 下一个可用的ID
-} AlarmManager;
+AlarmManager* alarm_mgr = NULL;
 
 // 函数声明
 AlarmManager* alarm_manager_create(int initial_capacity);
@@ -53,8 +39,6 @@ bool alarm_modify_callback(int id, const char* time, const char* message, bool e
 bool alarm_enable_callback(int id, bool enable);
 
 alarm_clock_ring_func_t alarm_clock_ring = NULL;
-
-AlarmManager* alarm_mgr = NULL;
 
 bool CheckAlarmManagerFromNv(void) {
     Settings settings("AlarmManager", false);
@@ -209,7 +193,7 @@ void GetAlarmManagerFromNv(AlarmManager* manager) {
 int alarm_clock_init() {
     // 创建闹钟管理器
     alarm_mgr = alarm_manager_create(GetAlarmCapacityFromNv());
-    
+
     if (!alarm_mgr) {
         ESP_LOGI(TAG, "创建闹钟管理器失败!\n");
         return 1;
@@ -224,6 +208,54 @@ int alarm_clock_init() {
     // alarm_create(alarm_mgr, "18:00", "下班时间", true, 0b01111100); // 周一到周五
     // alarm_create(alarm_mgr, "19:49", "睡觉时间", true, 0b01111111); // 每天
     TRY_STATIC_ASSERT(alarm_mgr->count <= ALARM_MAX_COUNT && alarm_mgr->count >= 0, "alarm count must be between 0 and ALARM_MAX_COUNT");
+
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+   // 将 Display* 转换为 OledDisplay*（需要包含相应的头文件）
+    OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+    // OledDisplay* oled_display = dynamic_cast<OledDisplay*>(display);
+    // 设置闹钟保存回调
+    if (oled_display) {
+        oled_display->SetAlarmManager(alarm_mgr);
+
+        // 设置闹钟保存回调
+        oled_display->SetAlarmSaveCallback([](const Alarm& alarm) {
+            ESP_LOGI("App", "闹钟保存: %s, 重复: %s", 
+                    alarm.time, 
+                    alarm.repeat ? "是" : "否");
+            
+            // 这里实际保存到Flash或NVS
+            // save_alarm_to_storage(alarm);
+            
+            // 添加到内存中的管理器
+            // alarm_manager_add_alarm(&alarm_manager, &alarm);
+        });
+
+        // 设置闹钟删除回调
+        oled_display->SetAlarmDeleteCallback([](int alarm_id) {
+            ESP_LOGI("App", "删除闹钟ID: %d", alarm_id);
+            // 从存储中删除
+            // delete_alarm_from_storage(alarm_id);
+        });
+
+        // 设置闹钟开关回调
+        oled_display->SetAlarmToggleCallback([](int alarm_id, bool enabled) {
+            ESP_LOGI("App", "闹钟%d %s", alarm_id, enabled ? "启用" : "禁用");
+            // 更新存储状态
+            // update_alarm_status(alarm_id, enabled);
+        });
+
+        // 设置UI退出回调（可选）
+        oled_display->SetAlarmUIExitCallback([]() {
+            ESP_LOGI("App", "闹钟UI已退出");
+            // 可以在这里恢复其他功能
+        });
+    }
+
+    // 3. 创建并显示闹钟列表界面
+    // ui_create_alarm_list_screen();
+    ESP_LOGI(TAG, "HELLO!!! %d\n", alarm_mgr->count);
+    vTaskDelay(pdMS_TO_TICKS(9000));
     // 显示所有闹钟
     alarm_display_all(alarm_mgr);
 
@@ -420,10 +452,12 @@ bool alarm_delete(AlarmManager* manager, int id) {
 
 // 显示所有闹钟
 void alarm_display_all(const AlarmManager* manager) {
+    // ui_create_alarm_list_screen();
+    // vTaskDelay(pdMS_TO_TICKS(9000));
     ESP_LOGI(TAG, "\n=== 闹钟列表 ===\n");
     ESP_LOGI(TAG, "ID\t时间\t状态\t重复\t信息\n");
     ESP_LOGI(TAG, "-----------------------------------------\n");
-    
+
     for (int i = 0; i < manager->count; i++) {
         const Alarm* alarm = &manager->alarms[i];
         ESP_LOGI(TAG, "%d\t%s\t%s\t%s\t%s\n",
@@ -629,7 +663,7 @@ bool alarm_modify_repeat(AlarmManager* manager, int id, bool repeat, int days) {
 // 保存所有闹钟信息到NVS
 void alarm_save_to_nvs(AlarmManager* manager) {
     if (!manager) return;
-    
+
     // 创建JSON数组
     cJSON *alarmArray = cJSON_CreateArray();
     

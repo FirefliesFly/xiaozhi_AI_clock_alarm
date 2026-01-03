@@ -1,12 +1,11 @@
 #pragma once
 
 #include "display/lcd_display.h"
-#include <memory>
-#include <functional>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include "anim_player.h"
 #include "mmap_generate_emoji.h"
+#include <functional>  // 添加这一行
 
 namespace anim {
 

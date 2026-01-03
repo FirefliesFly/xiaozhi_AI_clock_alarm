@@ -39,6 +39,8 @@ set(SOURCES "audio/audio_codec.cc"
             "TFLite_Lib/model.cc"
             "main.cc"
             "alarm_clock.cc"
+            "alarm_clock_menu.cc"
+            "alarm_clock_driver.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "audio" "protocols" "TFLite_Lib")

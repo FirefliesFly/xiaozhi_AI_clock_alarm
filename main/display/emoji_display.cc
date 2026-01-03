@@ -11,6 +11,10 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 #include <freertos/event_groups.h>
+#include "alarm_clock_menu.h"
+#include <unordered_map>  // 添加这一行
+#include <functional>     // 添加这一行（如果还没有的话）
+
 
 // #include "result_test.h"
 
@@ -165,6 +169,11 @@ EmojiPlayer::~EmojiPlayer()
 
 void EmojiPlayer::StartPlayer(int aaf, bool repeat, int fps)
 {
+    // ui_create_alarm_list_screen();
+    // vTaskDelay(pdMS_TO_TICKS(100));
+    StopPlayer();
+    return ;//just for test
+
     if (player_handle_) {
 
         // static uint8_t my_cnt = 0;

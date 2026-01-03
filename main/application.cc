@@ -14,7 +14,7 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 #include <font_awesome.h>
-
+#include "oled_display.h"
 #include "alarm_clock.h"
 
 #define TAG "Application"
@@ -122,7 +122,7 @@ void Application::CheckNewVersion(Ota& ota) {
             vTaskDelay(pdMS_TO_TICKS(3000));
 
             SetDeviceState(kDeviceStateUpgrading);
-            
+
             std::string message = std::string(Lang::Strings::NEW_VERSION) + ota.GetFirmwareVersion();
             display->SetChatMessage("system", message.c_str());
 
@@ -254,7 +254,7 @@ void Application::DismissAlert() {
         {
             display_ = display;
         }
-        
+
         display_->SetStatus(Lang::Strings::STANDBY);
         display_->SetEmotion("neutral");
         display_->SetChatMessage("system", "");
@@ -611,6 +611,17 @@ void Application::Start() {
 
     //creat alarm_clock management
     alarm_clock_init();
+
+    // auto& board = Board::GetInstance();
+    // auto display = board.GetDisplay();
+    OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+    if(oled_display)
+    {
+        // display->SetAlarmManager(&manager);
+        oled_display->ShowAlarmList();
+        // vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+
 }
 
 void Application::OnClockTimer() {
@@ -872,7 +883,7 @@ void Application::SetAecMode(AecMode mode) {
         {
             display_ = display;
         }
-        
+
         switch (aec_mode_) {
         case kAecOff:
             audio_service_.EnableDeviceAec(false);

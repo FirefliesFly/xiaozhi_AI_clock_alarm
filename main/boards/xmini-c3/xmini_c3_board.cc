@@ -31,6 +31,7 @@ private:
     Display* display_ = nullptr;
     anim::EmojiWidget* display_emoji_ = nullptr;
     Button boot_button_;
+    Button alarm_button_;
     PowerSaveTimer* power_save_timer_ = nullptr;
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
 
@@ -150,15 +151,52 @@ private:
                 Application::GetInstance().StopListening();
             }
         });
+
+        alarm_button_.OnClick([this]() {
+            Display* display = GetDisplay();
+            OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+            // oled_display->HandleKeyEvent(0x02);//back
+            oled_display->HandleKeyEvent(0x04);//back
+
+            ESP_LOGI(TAG, "HELLO!! Alarm button clicked");
+
+        });
+        alarm_button_.OnPressDown([this]() {
+            Display* display = GetDisplay();
+            OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+            oled_display->HandleKeyEvent(0x03);//back
+            ESP_LOGI(TAG, "HELLO!! Alarm button pressed");
+        });
+        alarm_button_.OnPressUp([this]() {
+            Display* display = GetDisplay();
+            OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+            oled_display->HandleKeyEvent(0x03);//KEY_ENTER
+            ESP_LOGI(TAG, "HELLO!! Alarm button enter");
+        });
+
+        Display* display = GetDisplay();
+        OledDisplay* oled_display = static_cast<OledDisplay*>(display);
+        if(oled_display)
+        {
+            oled_display->SetAlarmUIExitCallback([this]() {
+                // 这里不需要参数，因为SetAlarmUIExitCallback期望的是void()函数
+            });
+            oled_display->SetAlarmToggleCallback([this](int alarm_id, bool enabled) {
+                // 实现回调逻辑
+            });
+            oled_display->SetAlarmDeleteCallback([this](int alarm_id) {
+                // 实现回调逻辑
+            });
+        }
     }
 
     void InitializeTools() {
         press_to_talk_tool_ = new PressToTalkMcpTool();
         press_to_talk_tool_->Initialize();
     }
-
+// (gpio_num_t gpio_num, bool active_high = false, uint16_t long_press_time = 0, uint16_t short_press_time = 0, bool enable_power_save = false)
 public:
-    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO), alarm_button_(ALARM_BUTTON_GPIO, true, 1500, 60, true) {
         InitializeCodecI2c();
         InitializeSsd1306Display();
         InitializeButtons();
