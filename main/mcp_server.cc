@@ -43,7 +43,8 @@ void McpServer::AddCommonTools() {
         "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\n"
         "Use this tool for: \n"
         "1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n"
-        "2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)",
+        "2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)\n"
+        "3. Check local alarm clock information for user. Here is an json format example for the alarm clock information of local device: {\"AlarmManager\":{\"count\": 2, \"capacity\": 10,\"next_id\": 3,\"enable\": true,\"AlarmInfo\": {\"Alarm\": [{\"id\": 1, \"time\": \"07:30\", \"message\": \"起床时间\", \"enabled\": true, \"repeat\": true, \"days_of_week\": 60}, {\"id\": 2, \"time\": \"12:00\", \"message\": \"起床时间\", \"enabled\": true, \"repeat\": true, \"days_of_week\": 60}]}}}",
         PropertyList(),
         [&board](const PropertyList& properties) -> ReturnValue {
             return board.GetDeviceStatusJson();
@@ -115,7 +116,8 @@ void McpServer::AddCommonTools() {
         // 工具描述: 创建一个新的闹钟
         AddTool("self.alarm_clock.create",
             "Create a new alarm clock.\n"
-            "Use this tool to set up a new alarm with specific time and settings.",
+            "Use this tool to set up a new alarm with specific time and settings.\n"
+            "Try to consult users as little as possible; only consult them if there is a problem that you really can not solve. When creating an alarm, act quickly.",
             // 定义工具参数: hour(小时), minute(分钟), wday(星期几)
             PropertyList({
                 Property("hour", kPropertyTypeInteger, 0, 23),      // 小时参数，范围0-23
@@ -137,7 +139,13 @@ void McpServer::AddCommonTools() {
                 strftime(current_time, sizeof(current_time), "%H:%M", &timeinfo);
                 //snprintf(time_clock, sizeof(time_clock), "%02d:%02d", hour, minute);
                 // 返回执行
-                return alarm_create_callback(current_time, "HELLO", true, 0x01 << wday);
+                bool status = alarm_create_callback(current_time, "HELLO", true, 0x01 << wday);
+                // refresh alarm list
+                auto& board = Board::GetInstance();
+                auto display = board.GetDisplay();
+                display->SetEmotion("alarm");
+
+                return status;
             });
 
         AddTool("self.get_alarm_clock_counts",
@@ -155,21 +163,28 @@ void McpServer::AddCommonTools() {
         // 工具名称: self.alarm_clock.delete
         // 工具描述: 删除指定索引的闹钟
         AddTool("self.alarm_clock.delete",
-            "Delete an existing alarm clock by index.\n"
-            "If the total number of current alarms is unknown, you must call `self.get_alarm_clock_counts` tool first and then call this tool.\n"
-            "Use this tool to remove an alarm that is no longer needed.",
+            "Delete an existing alarm clock by the parameter 'id'.\n"
+            "Notice that current tool parameter 'id' is from the json key parameter 'id' of the alarm clock information from the 'self.get_device_status' tool.\n"
+            "If the total number of current alarms is unknown, you must first call `self.get_alarm_clock_counts` tool and 'self.get_device_status' tool, and then call this tool.\n"
+            "Use this tool to remove an alarm that is no longer needed.\n"
+            "Notice that you call this tool once, just one alarm will be deleted!! So you have to call this tool multiple times if there continues alarms required to be deleted.\n"
+            "you maybe consult user to confirm your intentions if there is any risks or puzzled things for you. But try to consult users as little as possible; only consult them if there is a problem that you really can't solve. When deleting alarms, make sure to act quickly.",
             // 定义工具参数: index(闹钟索引)
             PropertyList({
-                Property("index", kPropertyTypeInteger, 0, 9)       // 闹钟索引参数，范围0-9
+                Property("id", kPropertyTypeInteger, 0, 100)       // 闹钟索引参数，范围0-9
             }),
             // Lambda回调函数，当工具被调用时执行删除闹钟操作
             [alarm_clock](const PropertyList& properties) -> ReturnValue {
                 // 从参数中获取闹钟索引值
-                uint8_t index = static_cast<uint8_t>(properties["index"].value<int>());
-                
+                uint8_t index = static_cast<uint8_t>(properties["id"].value<int>());
+
                 // 调用闹钟接口删除指定索引的闹钟
-                alarm_delete_callback(index + 1);
-                
+                alarm_delete_callback(index);
+
+                // refresh alarm list
+                auto& board = Board::GetInstance();
+                auto display = board.GetDisplay();
+                display->SetEmotion("alarm");
                 // 返回执行成功
                 return true;
             });

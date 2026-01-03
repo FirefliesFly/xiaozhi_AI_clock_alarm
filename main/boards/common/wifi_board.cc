@@ -16,6 +16,7 @@
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
 #include "afsk_demod.h"
+#include "alarm_clock.h"
 
 static const char *TAG = "WifiBoard";
 
@@ -254,14 +255,25 @@ std::string WifiBoard::GetDeviceStatusJson() {
         cJSON_AddItemToObject(root, "chip", chip);
     }
 
+    // alarm_clock info
+    if(CheckAlarmManagerFromNv() == true) {
+        Settings settings("AlarmManager", false);
+        std::string jsonData = settings.GetString("AlarmInfo", "");
+        // auto alarm_clock_info = cJSON_CreateObject();
+        // cJSON_AddStringToObject(alarm_clock_info, "alarm_clock_info", jsonData.c_str());
+        // cJSON_AddItemToObject(alarm_clock_info, "alarm_clock_info", chip);
+        cJSON_AddStringToObject(root, "alarm_clock_info", jsonData.c_str());
+        ESP_LOGI(TAG, "AlarmInfo原始JSON数据: %s", jsonData.c_str());
+    }
+
     auto json_str = cJSON_PrintUnformatted(root);
+    ESP_LOGI(TAG, "root原始JSON数据: %s", json_str);
     std::string json(json_str);
     cJSON_free(json_str);
     cJSON_Delete(root);
     return json;
 }
 
-#include "alarm_clock.h"
 std::string WifiBoard::GetAlarmClockCountJson() {
     /*
      * 返回设备状态JSON

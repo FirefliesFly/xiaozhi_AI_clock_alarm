@@ -223,7 +223,7 @@ int alarm_clock_init() {
             ESP_LOGI("App", "闹钟保存: %s, 重复: %s", 
                     alarm.time, 
                     alarm.repeat ? "是" : "否");
-            
+
             // 这里实际保存到Flash或NVS
             // save_alarm_to_storage(alarm);
             
@@ -418,6 +418,12 @@ int alarm_create(AlarmManager* manager, const char* time, const char* message, b
     }
     
     Alarm* new_alarm = &manager->alarms[manager->count];
+
+    if(manager->next_id >= manager->capacity)
+    {
+        manager->next_id = 0;
+    }
+
     new_alarm->id = manager->next_id++;
     strncpy(new_alarm->time, time, sizeof(new_alarm->time) - 1);
     new_alarm->time[5] = '\0';
@@ -425,29 +431,66 @@ int alarm_create(AlarmManager* manager, const char* time, const char* message, b
     new_alarm->enabled = true;
     new_alarm->repeat = repeat;
     new_alarm->days_of_week = days;
-    
+
     manager->count++;
     return new_alarm->id;
 }
 
 // 删除闹钟
 bool alarm_delete(AlarmManager* manager, int id) {
+    if (manager == NULL) {
+        ESP_LOGE(TAG, "闹钟管理器未初始化");
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "尝试删除ID为%d的闹钟...", id);
+
+    // 查找要删除的闹钟
+    int delete_index = -1;
     for (int i = 0; i < manager->count; i++) {
         if (manager->alarms[i].id == id) {
-            // 将后一个元素移到当前位置
-            if (i < manager->count - 1) {
-                for(; i < manager->count - 1; i++){
-                    manager->alarms[i] = manager->alarms[i + 1];
-                    manager->alarms[i].id = i + 1;
-                }
-                //manager->alarms[i] = manager->alarms[manager->count - 1];
-            }
-            manager->count--;
-            manager->next_id--;
-            return true;
+            delete_index = i;
+            break;
         }
     }
-    return false;
+
+    // 如果没找到
+    if (delete_index == -1) {
+        ESP_LOGW(TAG, "未找到ID为%d的闹钟", id);
+        return false;
+    }
+
+    ESP_LOGI(TAG, "找到闹钟[%d]，位于索引%d，开始删除...", 
+             id, delete_index);
+
+    // // 保存被删除闹钟的信息用于日志
+    // Alarm deleted_alarm = manager->alarms[delete_index];
+
+    // 从数组中移除（前移后面的元素）
+    for (int i = delete_index; i < manager->count - 1; i++) {
+        manager->alarms[i] = manager->alarms[i + 1];
+        // 注意：不修改ID！保持原有ID不变
+    }
+
+    // 减少计数
+    manager->count--;
+
+    // 清理最后一个元素（可选）
+    if (manager->count > 0) {
+        memset(&manager->alarms[manager->count], 0, sizeof(Alarm));
+    }
+
+    // 保存到NVS
+    // bool save_ok = alarm_save_to_nvs(manager);
+    alarm_save_to_nvs(manager);
+
+    // ESP_LOGI(TAG, "删除完成：%02d:%02d %s %s，剩余%d个闹钟",
+    //          deleted_alarm.hour, deleted_alarm.minute,
+    //          deleted_alarm.enabled ? "启用" : "禁用",
+    //          deleted_alarm.repeat ? "重复" : "单次",
+    //          manager->count);
+
+    return true;  // 返回保存结果
 }
 
 // 显示所有闹钟

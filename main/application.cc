@@ -427,6 +427,8 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
+    //creat alarm_clock management
+    alarm_clock_init();
 
     AudioServiceCallbacks callbacks;
     /* 初始化一下给其他服务层，比如给wake_word层使用的事件组设置动作 回调函数 */
@@ -608,9 +610,6 @@ void Application::Start() {
 
     // Print heap stats
     SystemInfo::PrintHeapStats();
-
-    //creat alarm_clock management
-    alarm_clock_init();
 
     // auto& board = Board::GetInstance();
     // auto display = board.GetDisplay();

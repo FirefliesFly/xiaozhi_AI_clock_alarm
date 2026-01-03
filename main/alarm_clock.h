@@ -15,6 +15,8 @@ void alarm_clock_check(void);
 bool alarm_create_callback(const char* time, const char* message, bool repeat, int days);
 bool alarm_delete_callback(int id);
 uint8_t get_alarm_counts(void);
+bool CheckAlarmManagerFromNv(void);
+void alarm_save_to_nvs(AlarmManager* manager);
 
 typedef void (*alarm_clock_ring_func_t)(void);
 extern alarm_clock_ring_func_t alarm_clock_ring;
