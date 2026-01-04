@@ -278,8 +278,8 @@ void AlarmUIDriver::CreateAlarmListScreen() {
 
     // 闹钟编辑界面
     edit_container_ = lv_obj_create(current_screen_);
-    lv_obj_set_size(edit_container_, config_.display_width,
-                   config_.display_height);
+    lv_obj_set_size(edit_container_, config_.display_width-4,
+                   config_.display_height-4);
     // ⭐⭐⭐ 关键：创建后立即隐藏 ⭐⭐⭐
     lv_obj_add_flag(edit_container_, LV_OBJ_FLAG_HIDDEN);
 
@@ -295,34 +295,116 @@ void AlarmUIDriver::CreateAlarmListScreen() {
 #define EDIT_CANCEL "NULL"
 #define EDIT_OK "NULL"
 
+
+// 事件回调函数
+static void on_time_changed(lv_event_t* e) {
+    lv_obj_t* obj = (lv_obj_t*)lv_event_get_target(e);
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        // 获取父容器中的所有控件
+        lv_obj_t* parent = lv_obj_get_parent(obj);
+        lv_obj_t* hour_roller = NULL;
+        lv_obj_t* minute_roller = NULL;
+
+        // 查找小时和分钟选择器
+        for (int i = 0; i < lv_obj_get_child_cnt(parent); i++) {
+            lv_obj_t* child = lv_obj_get_child(parent, i);
+            void* user_data = lv_obj_get_user_data(child);
+
+            if (user_data == (void*)EDIT_HOUR) {
+                hour_roller = child;
+            } else if (user_data == (void*)EDIT_MINUTE) {
+                minute_roller = child;
+            }
+        }
+
+        if (hour_roller && minute_roller) {
+            // 获取选择的时间
+            int hour = lv_roller_get_selected(hour_roller);
+            int minute_index = lv_roller_get_selected(minute_roller);
+            int minute = minute_index * 5; // 转换为实际分钟
+
+            ESP_LOGI(TAG, "时间已修改：%02d:%02d", hour, minute);
+
+            // 自动保存到当前编辑的闹钟
+            // if (current_editing_alarm) {
+            //     snprintf(current_editing_alarm->time, sizeof(current_editing_alarm->time), 
+            //             "%02d:%02d", hour, minute);
+            //     ESP_LOGI(TAG, "已自动保存到闹钟");
+            // }
+
+            // 可选：添加确认提示或声音反馈
+            // lv_msgbox_create(parent, "提示", "时间已保存", NULL, true);
+        }
+    }
+}
+
+// 键盘/按键处理函数（如果需要）
+static void on_key_pressed(lv_event_t* e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t* obj = (lv_obj_t*)lv_event_get_target(e);
+    
+    if (code == LV_EVENT_KEY) {
+        uint32_t key = lv_event_get_key(e);
+        
+        switch (key) {
+            case LV_KEY_ENTER:
+            case LV_KEY_ESC:
+                // ESC键或回车键退出时间选择器
+                ESP_LOGI(TAG, "退出时间选择器");
+                // 返回到上一级界面
+                // show_previous_screen();
+                break;
+                
+            case LV_KEY_LEFT:
+                // 切换到小时选择器
+                lv_group_focus_next(lv_group_get_default());
+                break;
+                
+            case LV_KEY_RIGHT:
+                // 切换到分钟选择器
+                lv_group_focus_prev(lv_group_get_default());
+                break;
+                
+            case LV_KEY_UP:
+            case LV_KEY_DOWN:
+                // 方向键已由LVGL自动处理滚动
+                break;
+        }
+    }
+}
+
+//TODO
 //TODO
 void AlarmUIDriver::CreateTimePicker(lv_obj_t* parent, Alarm* alarm) {
     // 调试信息
-    ESP_LOGI(TAG, "创建时间选择器,屏幕尺寸:128x64");
-    
+    ESP_LOGI(TAG, "创建时间选择器,屏幕尺寸:128x64, TIME:%s", alarm->time);
+
     // 解析当前时间
     int hour = 8, minute = 0;
     if (alarm && alarm->time[0]) {
         sscanf(alarm->time, "%d:%d", &hour, &minute);
     }
-    
+
     // 限制值范围
     if (hour < 0) hour = 0;
     if (hour > 23) hour = 23;
     if (minute < 0) minute = 0;
     if (minute > 59) minute = 59;
-    
+
     // ==================== 1. 小时选择器 ====================
     lv_obj_t* hour_roller = lv_roller_create(parent);
     if (!hour_roller) {
         ESP_LOGE(TAG, "创建小时选择器失败");
         return;
     }
-    
+
+    lv_obj_align(hour_roller, LV_ALIGN_LEFT_MID, 0, 0);
     // 设置尺寸和位置（适应128x64屏幕）
-    lv_obj_set_size(hour_roller, 48, 36);  // 缩小尺寸
-    lv_obj_set_pos(hour_roller, 10, 14);   // 调整位置
-    
+    lv_obj_set_size(hour_roller, 40, 36);  // 缩小尺寸
+    // lv_obj_set_pos(hour_roller, 10, 14);   // 调整位置
+
     // 使用静态字符串常量（节省栈内存）
     static const char* HOUR_OPTIONS = 
         "00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n"
@@ -332,29 +414,34 @@ void AlarmUIDriver::CreateTimePicker(lv_obj_t* parent, Alarm* alarm) {
     lv_roller_set_options(hour_roller, HOUR_OPTIONS, LV_ROLLER_MODE_NORMAL);
     lv_roller_set_selected(hour_roller, hour, LV_ANIM_OFF);
     lv_obj_set_user_data(hour_roller, (void*)EDIT_HOUR);
-    
+
     // ==================== 2. 冒号标签 ====================
     lv_obj_t* colon_label = lv_label_create(parent);
     if (colon_label) {
+        // lv_obj_set_size(colon_label, 8, 16);
         lv_label_set_text(colon_label, ":");
-        lv_obj_set_pos(colon_label, 63, 24);  // 居中位置
+        // lv_obj_set_pos(colon_label, 63, 24);  // 居中位置
+        // lv_obj_center(colon_label);
+        lv_obj_align(colon_label, LV_ALIGN_CENTER, 0, 0);
+        // lv_obj_align_to(colon_label, hour_roller, LV_ALIGN_OUT_TOP_RIGHT, 0, 0);
         lv_obj_set_style_text_font(colon_label, &font_puhui_14_1, 0);
     }
-    
+
     // ==================== 3. 分钟选择器 ====================
     lv_obj_t* minute_roller = lv_roller_create(parent);
     if (!minute_roller) {
         ESP_LOGE(TAG, "创建分钟选择器失败");
         return;
     }
-    
-    lv_obj_set_size(minute_roller, 48, 36);
-    lv_obj_set_pos(minute_roller, 70, 14);
-    
+
+    lv_obj_set_size(minute_roller, 40, 36);
+    // lv_obj_set_pos(minute_roller, 70, 14);
+    lv_obj_align(minute_roller, LV_ALIGN_RIGHT_MID, 2, 0);
+
     // 分钟选项（5分钟间隔）
     static const char* MINUTE_OPTIONS = 
         "00\n05\n10\n15\n20\n25\n30\n35\n40\n45\n50\n55";
-    
+
     lv_roller_set_options(minute_roller, MINUTE_OPTIONS, LV_ROLLER_MODE_NORMAL);
 
     // 计算最近的5分钟间隔
@@ -362,15 +449,15 @@ void AlarmUIDriver::CreateTimePicker(lv_obj_t* parent, Alarm* alarm) {
     if (minute_index >= 12) minute_index = 11;
     lv_roller_set_selected(minute_roller, minute_index, LV_ANIM_OFF);
     lv_obj_set_user_data(minute_roller, (void*)EDIT_MINUTE);
-    
+
     // ==================== 4. 样式优化 ====================
-    
+
     // 小时选择器样式
     lv_obj_set_style_text_line_space(hour_roller, 1, LV_PART_MAIN);     // 最小行距
     lv_obj_set_style_text_font(hour_roller, &font_puhui_14_1, LV_PART_MAIN);
     lv_obj_set_style_text_align(hour_roller, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(hour_roller, LV_OPA_30, LV_PART_MAIN);
-    
+
     lv_obj_set_style_bg_color(hour_roller, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(hour_roller, 1, LV_PART_MAIN);
     lv_obj_set_style_border_color(hour_roller, lv_color_black(), LV_PART_MAIN);
@@ -378,7 +465,7 @@ void AlarmUIDriver::CreateTimePicker(lv_obj_t* parent, Alarm* alarm) {
     // 选中项样式
     lv_obj_set_style_bg_color(hour_roller, lv_color_black(), LV_PART_SELECTED);
     lv_obj_set_style_text_color(hour_roller, lv_color_white(), LV_PART_SELECTED);
-    
+
     // 分钟选择器样式（复制小时样式）
     lv_obj_set_style_text_line_space(minute_roller, 1, LV_PART_MAIN);
     lv_obj_set_style_text_font(minute_roller, &font_puhui_14_1, LV_PART_MAIN);
@@ -390,44 +477,30 @@ void AlarmUIDriver::CreateTimePicker(lv_obj_t* parent, Alarm* alarm) {
     lv_obj_set_style_bg_color(minute_roller, lv_color_black(), LV_PART_SELECTED);
     lv_obj_set_style_text_color(minute_roller, lv_color_white(), LV_PART_SELECTED);
 
-    // ==================== 5. 添加确定/取消按钮 ====================
-    int btn_width = 52;
-    int btn_height = 24;
-    int btn_y = 56;  // 底部位置
+    // ==================== 5. 操作逻辑设置 ====================
 
-    // 取消按钮
-    lv_obj_t* cancel_btn = lv_btn_create(parent);
-    lv_obj_set_size(cancel_btn, btn_width, btn_height);
-    lv_obj_set_pos(cancel_btn, 10, btn_y);
+    // 创建事件回调函数
+    lv_obj_add_event_cb(hour_roller, on_time_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(minute_roller, on_time_changed, LV_EVENT_VALUE_CHANGED, NULL);
 
-    lv_obj_t* cancel_label = lv_label_create(cancel_btn);
-    lv_label_set_text(cancel_label, "取消");
-    lv_obj_center(cancel_label);
-    lv_obj_set_user_data(cancel_btn, (void*)EDIT_CANCEL);
+    // 添加键盘/按键支持
+    lv_obj_add_flag(hour_roller, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_add_flag(minute_roller, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 
-    // 确定按钮
-    lv_obj_t* ok_btn = lv_btn_create(parent);
-    lv_obj_set_size(ok_btn, btn_width, btn_height);
-    lv_obj_set_pos(ok_btn, 66, btn_y);
-
-    lv_obj_t* ok_label = lv_label_create(ok_btn);
-    lv_label_set_text(ok_label, "确定");
-    lv_obj_center(ok_label);
-    lv_obj_set_user_data(ok_btn, (void*)EDIT_OK);
-
-    // 按钮样式
-    lv_obj_set_style_bg_color(cancel_btn, lv_color_black(), 0);
-    lv_obj_set_style_text_color(cancel_label, lv_color_white(), 0);
-    lv_obj_set_style_bg_color(ok_btn, lv_color_black(), 0);
-    lv_obj_set_style_text_color(ok_label, lv_color_white(), 0);
-
+    // 设置初始焦点到小时选择器
+    lv_group_t* g = lv_group_get_default();
+    if (g) {
+        lv_group_add_obj(g, hour_roller);
+        lv_group_add_obj(g, minute_roller);
+        lv_group_focus_obj(hour_roller);
+    }
+    
     // ==================== 6. 调试信息 ====================
-    ESP_LOGI(TAG, "时间选择器创建完成：小时=%d,分钟=%d,索引%d,", 
+    ESP_LOGI(TAG, "时间选择器创建完成：小时=%d,分钟=%d,索引%d", 
              hour, minute, minute_index);
     ESP_LOGI(TAG, "控件位置：小时(%d,%d)，分钟(%d,%d)", 
              10, 14, 70, 14);
-
-    // 重要：删除 lv_refr_now(NULL) - 由LVGL自动管理
+    ESP_LOGI(TAG, "操作方式：使用方向键或触摸滚动选择时间，自动保存");
 }
 
 void AlarmUIDriver::CreateAlarmEditScreen(Alarm* alarm) {
@@ -658,6 +731,7 @@ void AlarmUIDriver::OnListItemClicked(lv_event_t* e) {
 
         for (int i = 0; i < mgr->count; i++) {
             if (mgr->alarms[i].id == alarm_id) {
+                ESP_LOGI(TAG, "HELLO!!! alarm_id=%0x list_idx=%d cnt=%d", mgr->alarms[i].id, alarm_id, mgr->count);
                 found_alarm = &mgr->alarms[i];
                 break;
             }
